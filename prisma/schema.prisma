@@ -1,0 +1,52 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        Int               @id @default(autoincrement())
+  email     String            @unique
+  phone     String?           @unique
+  name      String?
+  password  String
+  createdAt DateTime          @default(now())
+  role      UserRole          @default(CLIENT)
+  trucks    TruckAssignment[]
+  isVerified Boolean          @default(false)
+}
+
+model Truck {
+  id     Int               @id @default(autoincrement())
+  plate  String            @unique
+  model  String
+  routes Route[]
+  users  TruckAssignment[]
+}
+
+model TruckAssignment {
+  userId  Int
+  truckId Int
+  truck   Truck @relation(fields: [truckId], references: [id])
+  user    User  @relation(fields: [userId], references: [id])
+
+  @@id([userId, truckId])
+}
+
+model Route {
+  id      Int    @id @default(autoincrement())
+  origin  String
+  destiny String
+  truckId Int
+  truck   Truck  @relation(fields: [truckId], references: [id])
+}
+
+enum UserRole {
+  CLIENT
+  DRIVER
+  ADMIN
+}
