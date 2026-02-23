@@ -22,10 +22,9 @@ import { AssignUserDto } from './dto/assign-user.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
 export class TruckController {
-  constructor(private readonly truckService: TruckService) { }
+  constructor(private readonly truckService: TruckService) {}
 
   @Post()
-
   @ApiOperation({ summary: 'Crear camión (ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -37,13 +36,11 @@ export class TruckController {
       },
     },
   })
-
   create(@Body() dto: CreateTruckDto) {
     return this.truckService.create(dto);
   }
 
   @Get()
-
   @ApiOperation({ summary: 'Listar todos los camiones (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -58,13 +55,11 @@ export class TruckController {
       },
     },
   })
-
   findAll() {
     return this.truckService.findAll();
   }
 
   @Get(':id')
-
   @ApiOperation({ summary: 'Obtener camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -76,13 +71,11 @@ export class TruckController {
       },
     },
   })
-
   findOne(@Param('id') id: string) {
     return this.truckService.findOne(Number(id));
   }
 
   @Patch(':id')
-
   @ApiOperation({ summary: 'Actualizar camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -94,13 +87,11 @@ export class TruckController {
       },
     },
   })
-
   update(@Param('id') id: string, @Body() dto: UpdateTruckDto) {
     return this.truckService.update(Number(id), dto);
   }
 
   @Delete(':id')
-
   @ApiOperation({ summary: 'Eliminar camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -112,13 +103,11 @@ export class TruckController {
       },
     },
   })
-
   remove(@Param('id') id: string) {
     return this.truckService.remove(Number(id));
   }
 
   @Post('assign')
-
   @ApiOperation({ summary: 'Asignar usuario a camión (ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -130,13 +119,11 @@ export class TruckController {
       },
     },
   })
-
   assignUser(@Body() dto: AssignUserDto) {
     return this.truckService.assignUser(dto);
   }
 
   @Get(':id/users')
-
   @ApiOperation({ summary: 'Listar usuarios asignados a un camión (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -151,7 +138,6 @@ export class TruckController {
       },
     },
   })
-
   getUsersOfTruck(@Param('id') id: string) {
     return this.truckService.getUsersOfTruck(Number(id));
   }

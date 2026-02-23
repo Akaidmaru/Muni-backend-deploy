@@ -114,7 +114,6 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-
   @ApiOperation({
     summary: 'Cerrar sesión y revocar JWT',
     description:
@@ -131,7 +130,6 @@ export class AuthController {
       },
     },
   })
-
   async logout(@Req() req: Request) {
     return this.authService.logout(req.headers.authorization);
   }

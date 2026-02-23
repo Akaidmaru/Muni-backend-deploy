@@ -1,6 +1,5 @@
 generator client {
-  provider     = "prisma-client"
-  output       = "../generated/prisma"
+  provider     = "prisma-client-js"
   moduleFormat = "cjs"
 }
 
@@ -28,6 +27,14 @@ model Truck {
   users  TruckAssignment[]
 }
 
+model RoutePoint {
+  id        Int      @id @default(autoincrement())
+  routeId   Int
+  latitude  Float
+  longitude Float
+  order     Int
+  route     Route    @relation(fields: [routeId], references: [id])
+}
 model TruckAssignment {
   userId  Int
   truckId Int
@@ -43,6 +50,7 @@ model Route {
   destiny String
   truckId Int
   truck   Truck  @relation(fields: [truckId], references: [id])
+  points  RoutePoint[]
 }
 
 enum UserRole {

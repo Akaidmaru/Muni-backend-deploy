@@ -1,8 +1,7 @@
-
-import { PartialType } from '@nestjs/mapped-types';
+import { PartialType } from '@nestjs/swagger';
 import { AdminCreateUserDto } from './admin-create-user.dto';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '../../../generated/prisma/enums';
+import { UserRole } from '@prisma/client';
 
 export class AdminUpdateUserDto extends PartialType(AdminCreateUserDto) {
   @ApiPropertyOptional({
@@ -28,6 +27,5 @@ export class AdminUpdateUserDto extends PartialType(AdminCreateUserDto) {
     enum: UserRole,
     description: 'Nuevo rol del usuario',
   })
-
   role?: UserRole;
 }

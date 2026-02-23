@@ -7,7 +7,6 @@ import {
   Patch,
   UseGuards,
   Req,
-
   Query,
 } from '@nestjs/common';
 import {
@@ -28,7 +27,6 @@ import type { Request } from 'express';
 interface AuthenticatedRequest extends Request {
   user: { id: number };
 }
-
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -77,16 +75,14 @@ export class UserController {
       },
     },
   })
-
   getTrucksOfUser(@Param('id') id: string) {
     return this.userService.getTrucksOfUser(Number(id));
   }
-  constructor(private readonly userService: UserService) { }
+  constructor(private readonly userService: UserService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear usuario por administrador' })
   @ApiResponse({
@@ -99,7 +95,6 @@ export class UserController {
       },
     },
   })
-
   adminCreate(@Body() dto: AdminCreateUserDto) {
     return this.userService.adminCreate(dto);
   }
@@ -107,7 +102,6 @@ export class UserController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Listar todos los usuarios (ADMIN)' })
   @ApiResponse({
@@ -123,7 +117,6 @@ export class UserController {
       },
     },
   })
-
   findAll() {
     return this.userService.findAll();
   }
@@ -131,7 +124,6 @@ export class UserController {
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener usuario por ID (ADMIN)' })
   @ApiResponse({
@@ -144,14 +136,12 @@ export class UserController {
       },
     },
   })
-
   findOne(@Param('id') id: string) {
     return this.userService.findOne(Number(id));
   }
 
   @Patch('change-password')
   @UseGuards(JwtAuthGuard)
-
   @ApiOperation({ summary: 'Cambiar contraseña del usuario autenticado' })
   @ApiResponse({
     status: 200,
@@ -164,7 +154,6 @@ export class UserController {
     },
   })
   @ApiBearerAuth()
-
   changePassword(
     @Req() req: AuthenticatedRequest,
     @Body() dto: ChangePasswordDto,
@@ -176,7 +165,6 @@ export class UserController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-
   @ApiOperation({ summary: 'Actualizar usuario por administrador' })
   @ApiResponse({
     status: 200,
@@ -189,7 +177,6 @@ export class UserController {
     },
   })
   @ApiBearerAuth()
-
   @Roles('ADMIN')
   adminUpdateUser(@Param('id') id: string, @Body() dto: AdminUpdateUserDto) {
     return this.userService.adminUpdateUser(Number(id), dto);

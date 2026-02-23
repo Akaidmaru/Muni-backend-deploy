@@ -13,4 +13,3 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @ApiPropertyOptional({ example: 'Juan Pérez' })
   name?: string;
 }
-

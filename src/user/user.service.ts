@@ -12,11 +12,11 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import * as bcrypt from 'bcrypt';
-import { UserUpdateInput } from '../../generated/prisma/models/User';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateUserDto) {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -74,7 +74,6 @@ export class UserService {
     });
   }
 
-
   async findByVerificationStatus(status: string) {
     const { BadRequestException } = await import('@nestjs/common');
     if (
@@ -91,14 +90,13 @@ export class UserService {
     });
   }
 
-
   async update(id: number, dto: UpdateUserDto) {
     await this.findOne(id); // Verifica que existe
 
-    const data: UserUpdateInput = { ...dto };
+    const data: Prisma.UserUpdateInput = { ...dto };
 
     // Si se actualiza el password, lo hasheamos
-    if (dto.password) {
+    if ('password' in dto && dto.password) {
       data.password = await bcrypt.hash(dto.password, 10);
     }
 
@@ -126,10 +124,10 @@ export class UserService {
       );
     }
 
-    const data: UserUpdateInput = { ...dto };
+    const data: Prisma.UserUpdateInput = { ...dto };
 
     // Si se actualiza el password, lo hasheamos
-    if (dto.password) {
+    if ('password' in dto && dto.password) {
       data.password = await bcrypt.hash(dto.password, 10);
     }
 

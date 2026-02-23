@@ -16,4 +16,3 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
   })
   model?: string;
 }
-

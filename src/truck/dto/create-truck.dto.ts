@@ -9,7 +9,6 @@ export class CreateTruckDto {
   plate: string;
 
   @ApiProperty({ example: 'Volvo FH', description: 'Modelo del camión' })
-
   @IsString()
   @IsNotEmpty()
   model: string;

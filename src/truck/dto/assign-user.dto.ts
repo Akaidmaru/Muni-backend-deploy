@@ -7,8 +7,10 @@ export class AssignUserDto {
   @IsInt()
   userId: number;
 
-  @ApiProperty({ example: 2, description: 'ID del camión al que se asigna el usuario' })
-
+  @ApiProperty({
+    example: 2,
+    description: 'ID del camión al que se asigna el usuario',
+  })
   @IsInt()
   truckId: number;
 }
