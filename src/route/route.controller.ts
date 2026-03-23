@@ -10,11 +10,14 @@ import {
 import { RouteService } from './route.service';
 import { CreateRouteDto } from './dto/create-route.dto';
 import { UpdateRouteDto } from './dto/update-route.dto';
-// ...existing code...
+import { GoogleRoadsService } from './googleRoads.service';
 
 @Controller('routes')
 export class RouteController {
-  constructor(private readonly routeService: RouteService) {}
+  constructor(
+    private readonly routeService: RouteService,
+    private readonly googleRoadsService: GoogleRoadsService,
+  ) {}
 
   @Post()
   create(@Body() dto: CreateRouteDto) {
@@ -48,7 +51,8 @@ export class RouteController {
   @Post('snap-to-roads')
   async snapToRoads(
     @Body('points') points: { latitude: number; longitude: number }[],
-  ): Promise<{ latitude: number; longitude: number }[]> {
-    return await this.routeService.snapToRoads(points);
+  ) {
+    const result = await this.googleRoadsService.snapToRoads(points);
+    return result;
   }
 }

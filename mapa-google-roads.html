@@ -1,120 +1,243 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <title>Roads API - Trayecto Corto</title>
-  <style>
-    #map { height: 100vh; width: 100%; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
+  <head>
+    <title>Roads API - Simulación GPS</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
 
-  <script>
-    // 🔐 SOLO AQUÍ defines tu API KEY
-    const API_KEY = "AIzaSyBHch8-rBgJh41jc1uCrPqbwHu9DaP-FMM";
+      #controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 16px;
+        background: #1e1e2e;
+        color: white;
+        flex-wrap: wrap;
+      }
 
-    let map;
-    let ruta;
+      #controls button {
+        padding: 7px 16px;
+        border-radius: 6px;
+        border: none;
+        background: #4f8ef7;
+        color: white;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      #controls button:hover { background: #3a7ae0; }
 
-    const puntosVehiculo = [
-      { lat: 6.15525, lng: -75.37382 },
-      { lat: 6.15560, lng: -75.37440 },
-      { lat: 6.15600, lng: -75.37510 },
-      { lat: 6.15640, lng: -75.37580 },
-      { lat: 6.15680, lng: -75.37650 }
-    ];
+      #status { font-size: 12px; color: #aaa; margin-left: auto; }
 
-    function initMap() {
+      #legend {
+        display: flex;
+        gap: 16px;
+        padding: 6px 16px;
+        background: #2a2a3e;
+        font-size: 12px;
+        color: #ccc;
+      }
+      .legend-item { display: flex; align-items: center; gap: 6px; }
+      .dot { width: 12px; height: 12px; border-radius: 50%; }
 
-      map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 16,
-        center: puntosVehiculo[0]
-      });
+      #map { flex: 1; }
+    </style>
+  </head>
+  <body>
 
-      ruta = new google.maps.Polyline({
-        strokeColor: "#FF0000",
-        strokeOpacity: 1,
-        strokeWeight: 4
-      });
+    <div id="controls">
+      <span style="font-size:13px">Simulación GPS → Snap to Roads</span>
+      <button onclick="correrSimulacion()">▶ Ejecutar</button>
+      <button onclick="limpiarMapa()">🗑 Limpiar</button>
+      <span id="status">Listo</span>
+    </div>
 
-      ruta.setMap(map);
+    <div id="legend">
+      <div class="legend-item"><div class="dot" style="background:#4f8ef7"></div> Punto GPS (impreciso)</div>
+      <div class="legend-item"><div class="dot" style="background:#2ecc71"></div> Punto ajustado</div>
+      <div class="legend-item"><div style="width:24px;height:3px;background:red"></div> Ruta ajustada</div>
+    </div>
 
-      ajustarACalles();
-    }
+    <div id="map"></div>
 
-    function ajustarACalles() {
+    <script>
+      const API_KEY = 'AIzaSyBHch8-rBgJh41jc1uCrPqbwHu9DaP-FMM';
 
-      fetch('http://localhost:3000/routes/snap-to-roads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ points: puntosVehiculo.map(p => ({ latitude: p.lat, longitude: p.lng })) })
-      })
-        .then(res => res.json())
-        .then(puntosAjustados => {
-          if (!Array.isArray(puntosAjustados) || puntosAjustados.length === 0) {
-            alert('No hay puntos ajustados en la respuesta');
-            return;
-          }
+      let map;
+      let polylineAjustada;
+      let markersGPS       = [];
+      let markersAjustados = [];
 
-          // 🔵 Dibujar puntos originales
-          puntosVehiculo.forEach(p => {
-            new google.maps.Marker({
-              position: p,
-              map: map,
-              icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 6,
-                fillColor: 'blue',
-                fillOpacity: 1,
-                strokeWeight: 1
-              },
-              title: 'Original'
-            });
-          });
+      // -----------------------------------------------------------------------
+      // Puntos GPS simulados
+      // Ruta: Apoquindo → Tobalaba → Kennedy (Santiago)
+      // Con pequeño ruido manual para simular imprecisión del GPS (~5-15m)
+      // -----------------------------------------------------------------------
+      const puntosGPS = [
+        // Apoquindo hacia el este
+        { latitude: -33.41800, longitude: -70.59700 },
+        { latitude: -33.41812, longitude: -70.59580 },
+        { latitude: -33.41798, longitude: -70.59450 },
+        { latitude: -33.41825, longitude: -70.59310 },
+        { latitude: -33.41808, longitude: -70.59180 },
+        { latitude: -33.41820, longitude: -70.59050 },
+        { latitude: -33.41835, longitude: -70.58920 },
+        { latitude: -33.41818, longitude: -70.58790 },
+        { latitude: -33.41840, longitude: -70.58660 },
+        { latitude: -33.41828, longitude: -70.58530 },
 
-          // 🟢 Dibujar puntos ajustados
-          puntosAjustados.forEach(p => {
-            new google.maps.Marker({
-              position: { lat: p.latitude, lng: p.longitude },
-              map: map,
-              icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 5,
-                fillColor: 'green',
-                fillOpacity: 1,
-                strokeWeight: 1
-              },
-              title: 'Ajustado'
-            });
-          });
+        // Bajando por Tobalaba hacia el sur
+        { latitude: -33.41950, longitude: -70.58510 },
+        { latitude: -33.42080, longitude: -70.58522 },
+        { latitude: -33.42210, longitude: -70.58508 },
+        { latitude: -33.42340, longitude: -70.58520 },
+        { latitude: -33.42460, longitude: -70.58505 },
+        { latitude: -33.42590, longitude: -70.58515 },
+        { latitude: -33.42720, longitude: -70.58500 },
+        { latitude: -33.42850, longitude: -70.58512 },
+        { latitude: -33.42975, longitude: -70.58498 },
+        { latitude: -33.43100, longitude: -70.58510 },
 
-          // 🔴 Dibujar línea ajustada
-          ruta.setPath(puntosAjustados.map(p => ({ lat: p.latitude, lng: p.longitude })));
+        // Kennedy hacia el oeste
+        { latitude: -33.43118, longitude: -70.58640 },
+        { latitude: -33.43125, longitude: -70.58780 },
+        { latitude: -33.43112, longitude: -70.58920 },
+        { latitude: -33.43130, longitude: -70.59060 },
+        { latitude: -33.43118, longitude: -70.59200 },
+        { latitude: -33.43128, longitude: -70.59340 },
+        { latitude: -33.43115, longitude: -70.59480 },
+        { latitude: -33.43132, longitude: -70.59620 },
+        { latitude: -33.43120, longitude: -70.59760 },
+        { latitude: -33.43128, longitude: -70.59900 },
+      ];
 
-          const bounds = new google.maps.LatLngBounds();
-          puntosAjustados.forEach(p => bounds.extend({ lat: p.latitude, lng: p.longitude }));
-          map.fitBounds(bounds);
+      // -----------------------------------------------------------------------
+      // Init
+      // -----------------------------------------------------------------------
 
-        })
-        .catch(err => {
-          console.error(err);
-          alert('Error llamando endpoint snap-to-roads');
+      function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 15,
+          center: { lat: puntosGPS[0].latitude, lng: puntosGPS[0].longitude },
         });
-    }
 
-    window.initMap = initMap;
+        polylineAjustada = new google.maps.Polyline({
+          strokeColor: '#e74c3c',
+          strokeOpacity: 1,
+          strokeWeight: 4,
+        });
+        polylineAjustada.setMap(map);
+      }
 
-    // 🔹 Cargar Google Maps dinámicamente usando la misma API_KEY
-    function cargarGoogleMaps() {
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    }
+      // -----------------------------------------------------------------------
+      // Flujo principal
+      // -----------------------------------------------------------------------
 
-    cargarGoogleMaps();
-  </script>
+      function correrSimulacion() {
+        limpiarMapa();
+        setStatus(`Enviando ${puntosGPS.length} puntos GPS al backend...`);
 
-</body>
+        // 1. Dibujar puntos GPS originales (azul)
+        puntosGPS.forEach((p) => {
+          const marker = new google.maps.Marker({
+            position: { lat: p.latitude, lng: p.longitude },
+            map,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 5,
+              fillColor: '#4f8ef7',
+              fillOpacity: 0.9,
+              strokeWeight: 1,
+              strokeColor: '#fff',
+            },
+            title: `GPS: ${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`,
+          });
+          markersGPS.push(marker);
+        });
+
+        // 2. Llamar al backend
+        fetch('http://localhost:3000/routes/snap-to-roads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ points: puntosGPS }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
+          .then((ajustados) => {
+            if (!Array.isArray(ajustados) || ajustados.length === 0) {
+              setStatus('⚠️ Sin puntos ajustados en la respuesta.');
+              return;
+            }
+
+            setStatus(`✅ ${ajustados.length} puntos ajustados sobre calles reales.`);
+
+            // 3. Dibujar puntos ajustados (verde)
+            ajustados.forEach((p) => {
+              const marker = new google.maps.Marker({
+                position: { lat: p.latitude, lng: p.longitude },
+                map,
+                icon: {
+                  path: google.maps.SymbolPath.CIRCLE,
+                  scale: 4,
+                  fillColor: '#2ecc71',
+                  fillOpacity: 0.9,
+                  strokeWeight: 1,
+                  strokeColor: '#fff',
+                },
+                title: `Ajustado: ${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`,
+              });
+              markersAjustados.push(marker);
+            });
+
+            // 4. Dibujar polyline roja
+            polylineAjustada.setPath(
+              ajustados.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+            );
+
+            // 5. Ajustar zoom para mostrar todo
+            const bounds = new google.maps.LatLngBounds();
+            ajustados.forEach((p) => bounds.extend({ lat: p.latitude, lng: p.longitude }));
+            puntosGPS.forEach((p) => bounds.extend({ lat: p.latitude, lng: p.longitude }));
+            map.fitBounds(bounds);
+          })
+          .catch((err) => {
+            console.error(err);
+            setStatus(`❌ Error: ${err.message}`);
+          });
+      }
+
+      // -----------------------------------------------------------------------
+      // Helpers
+      // -----------------------------------------------------------------------
+
+      function limpiarMapa() {
+        markersGPS.forEach((m) => m.setMap(null));
+        markersAjustados.forEach((m) => m.setMap(null));
+        markersGPS       = [];
+        markersAjustados = [];
+        polylineAjustada.setPath([]);
+        setStatus('Listo');
+      }
+
+      function setStatus(msg) {
+        document.getElementById('status').textContent = msg;
+      }
+
+      // -----------------------------------------------------------------------
+      // Cargar Google Maps
+      // -----------------------------------------------------------------------
+
+      window.initMap = initMap;
+
+      (function cargarGoogleMaps() {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      })();
+    </script>
+  </body>
 </html>

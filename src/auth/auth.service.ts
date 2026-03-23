@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,6 +11,11 @@ import { CreateUserDto } from './dto/create-user-dto';
 import { LoginDto } from './dto/login-dto';
 import * as bcrypt from 'bcrypt';
 import { MailService } from '../common/mail.service';
+
+interface JwtPayloadWithExp {
+  exp: number;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -40,57 +46,47 @@ export class AuthService {
     return { user };
   }
 
-  async sendVerificationCode({
-    email,
-    channel,
-  }: {
-    email?: string;
-    phone?: string;
-    channel: 'email' | 'sms';
-  }) {
+  async sendVerificationCode({ email }: { email: string }) {
     // Generar código de 6 dígitos
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    let key = '';
     const ttl = Number(process.env.VERIFICATION_CODE_TTL ?? 600);
-    if (channel === 'email' && email) {
-      key = `verify:email:${email}`;
-      await this.mailService.sendVerificationCode(email, code);
-    } else {
-      throw new ConflictException('Solo se permite verificación por email.');
+    if (!email) {
+      throw new ConflictException(
+        'Debe enviar un email para verificación por correo.',
+      );
     }
+
+    // Validar que el usuario exista
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const key = `verify:email:${email}`;
+    await this.mailService.sendVerificationCode(email, code);
+
     // Guardar código en Redis por el tiempo configurado
     await this.redisService.set(key, code, ttl);
-    return { message: `Código enviado por ${channel}` };
+    return { message: 'Código enviado por email' };
   }
 
-  async verifyCode({
-    email,
-    phone,
-    code,
-  }: {
-    email?: string;
-    phone?: string;
-    code: string;
-  }) {
-    let key = '';
-    if (email) {
-      key = `verify:email:${email}`;
-    } else if (phone) {
-      key = `verify:sms:${phone}`;
-    } else {
-      throw new ConflictException('Destino inválido');
-    }
+  async verifyCode({ email, code }: { email: string; code: string }) {
+    const key = `verify:email:${email}`;
     const stored = await this.redisService.get(key);
     if (!stored || stored !== code) {
       throw new UnauthorizedException('Código incorrecto o expirado');
     }
+
     // Actualizar el usuario como verificado en la base de datos
-    if (email) {
-      await this.prisma.user.update({
-        where: { email },
-        data: { isVerified: true },
-      });
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
     }
+    await this.prisma.user.update({
+      where: { email },
+      data: { isVerified: true },
+    });
+
     // Eliminar el código para que no se reutilice
     await this.redisService.del(key);
     return { message: 'Verificación exitosa' };
@@ -134,19 +130,27 @@ export class AuthService {
 
     const token = authHeader.replace('Bearer ', '');
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const decoded = this.jwtService.decode(token);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (!decoded || typeof decoded.exp !== 'number') {
+    const decoded: unknown = this.jwtService.decode(token);
+    if (!this.hasExpClaim(decoded)) {
       throw new UnauthorizedException('Token inválido');
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const ttl = (decoded.exp as number) - Math.floor(Date.now() / 1000);
+    const ttl = decoded.exp - Math.floor(Date.now() / 1000);
 
     if (ttl > 0) {
       await this.redisService.set(`blacklist:${token}`, 'true', ttl);
     }
 
     return { message: 'Logout exitoso' };
+  }
+
+  private hasExpClaim(payload: unknown): payload is JwtPayloadWithExp {
+    if (!payload || typeof payload !== 'object') {
+      return false;
+    }
+
+    return (
+      'exp' in payload &&
+      typeof (payload as Record<string, unknown>).exp === 'number'
+    );
   }
 }

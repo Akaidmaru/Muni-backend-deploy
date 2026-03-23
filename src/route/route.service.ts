@@ -1,13 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRouteDto } from './dto/create-route.dto';
 import { RoutePointDto } from './dto/route-point.dto';
 import { UpdateRouteDto } from './dto/update-route.dto';
-import { HttpException } from '@nestjs/common';
 
 @Injectable()
 export class RouteService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ---------------------------------------------------------------------------
+  // CRUD
+  // ---------------------------------------------------------------------------
 
   async create(dto: CreateRouteDto) {
     return await this.prisma.route.create({
@@ -16,11 +19,7 @@ export class RouteService {
         destiny: dto.destiny,
         truckId: dto.truckId,
         points: {
-          create: dto.points.map((point: RoutePointDto) => ({
-            latitude: point.latitude,
-            longitude: point.longitude,
-            order: point.order,
-          })),
+          create: this.mapPoints(dto.points),
         },
       },
       include: { points: true },
@@ -32,15 +31,23 @@ export class RouteService {
   }
 
   async findOne(id: number) {
-    return await this.prisma.route.findUnique({
+    const route = await this.prisma.route.findUnique({
       where: { id },
       include: { points: true },
     });
+
+    if (!route) {
+      throw new NotFoundException(`Route with id ${id} not found`);
+    }
+
+    return route;
   }
 
   async update(id: number, dto: UpdateRouteDto) {
+    // Ensure the route exists before updating
+    await this.findOne(id);
+
     return await this.prisma.$transaction(async (tx) => {
-      // Si se envían nuevos puntos, eliminamos los anteriores
       if (dto.points) {
         await tx.routePoint.deleteMany({ where: { routeId: id } });
       }
@@ -48,18 +55,12 @@ export class RouteService {
       return await tx.route.update({
         where: { id },
         data: {
-          origin: dto.origin,
-          destiny: dto.destiny,
-          truckId: dto.truckId,
-          points: dto.points
-            ? {
-                create: dto.points.map((point: RoutePointDto) => ({
-                  latitude: point.latitude,
-                  longitude: point.longitude,
-                  order: point.order,
-                })),
-              }
-            : undefined,
+          ...(dto.origin !== undefined && { origin: dto.origin }),
+          ...(dto.destiny !== undefined && { destiny: dto.destiny }),
+          ...(dto.truckId !== undefined && { truckId: dto.truckId }),
+          ...(dto.points && {
+            points: { create: this.mapPoints(dto.points) },
+          }),
         },
         include: { points: true },
       });
@@ -67,38 +68,24 @@ export class RouteService {
   }
 
   async remove(id: number) {
+    // Ensure the route exists before deleting
+    await this.findOne(id);
+
     return await this.prisma.$transaction(async (tx) => {
-      // Eliminamos los puntos asociados primero
       await tx.routePoint.deleteMany({ where: { routeId: id } });
-      // Luego eliminamos la ruta
       return await tx.route.delete({ where: { id } });
     });
   }
 
-  async snapToRoads(
-    points: { latitude: number; longitude: number }[],
-  ): Promise<{ latitude: number; longitude: number }[]> {
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      throw new HttpException('Google Maps API key not set', 500);
-    }
-    const path = points.map((p) => `${p.latitude},${p.longitude}`).join('|');
-    const url = `https://roads.googleapis.com/v1/snapToRoads?path=${path}&interpolate=true&key=${apiKey}`;
-    const res: Response = await fetch(url);
-    const data = (await res.json()) as {
-      error?: { message: string };
-      snappedPoints?: Array<{
-        location: { latitude: number; longitude: number };
-      }>;
-    };
-    if (data.error) {
-      throw new HttpException(data.error.message, 500);
-    }
-    return (
-      data.snappedPoints?.map((p) => ({
-        latitude: p.location.latitude,
-        longitude: p.location.longitude,
-      })) || []
-    );
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  private mapPoints(points: RoutePointDto[]) {
+    return points.map((point) => ({
+      latitude: point.latitude,
+      longitude: point.longitude,
+      order: point.order,
+    }));
   }
 }
