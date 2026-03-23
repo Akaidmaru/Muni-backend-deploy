@@ -8,6 +8,7 @@ import {
   UseGuards,
   Req,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -18,6 +19,17 @@ import { VerifyCodeDto } from './dto/verify-code.dto';
 import { CheckVerificationStatusDto } from './dto/check-verification-status.dto';
 import type { Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+
+interface AuthenticatedRequest extends Request {
+  user?: { id: number };
+}
+
+interface CurrentUserResponse {
+  id: number;
+  email: string;
+  name: string | null;
+  role: string;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -168,6 +180,38 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Obtener datos del usuario autenticado',
+    description:
+      'Este endpoint requiere el token JWT en el header Authorization: Bearer <token>',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Datos del usuario autenticado',
+    examples: {
+      success: {
+        summary: 'Usuario obtenido',
+        value: {
+          id: 1,
+          email: 'usuario@email.com',
+          name: 'Usuario',
+          role: 'DRIVER',
+        },
+      },
+    },
+  })
+  async getCurrentUser(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<CurrentUserResponse> {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedException('Usuario no encontrado en token');
+    }
+    return await this.authService.getCurrentUser(userId);
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -187,7 +231,7 @@ export class AuthController {
       },
     },
   })
-  async logout(@Req() req: Request) {
+  async logout(@Req() req: AuthenticatedRequest) {
     return this.authService.logout(req.headers.authorization);
   }
 }

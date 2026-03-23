@@ -25,6 +25,13 @@ interface OccupationIdOnly {
   id: number;
 }
 
+interface CurrentUserResponse {
+  id: number;
+  email: string;
+  name: string | null;
+  role: string;
+}
+
 interface OccupationDelegate {
   findMany(args: {
     orderBy: { name: 'asc' | 'desc' };
@@ -190,6 +197,24 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  async getCurrentUser(userId: number): Promise<CurrentUserResponse> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    return user as CurrentUserResponse;
   }
 
   async logout(authHeader?: string) {
