@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
 import { TruckModule } from './truck/truck.module';
 import { RouteModule } from './route/route.module';
+import { OccupationModule } from './occupation/occupation.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { RouteModule } from './route/route.module';
     AuthModule,
     TruckModule,
     RouteModule,
+    OccupationModule,
   ],
   controllers: [],
   providers: [],
