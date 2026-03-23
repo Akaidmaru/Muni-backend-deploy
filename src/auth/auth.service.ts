@@ -16,14 +16,46 @@ interface JwtPayloadWithExp {
   exp: number;
 }
 
+interface OccupationListItem {
+  id: number;
+  name: string;
+}
+
+interface OccupationIdOnly {
+  id: number;
+}
+
+interface OccupationDelegate {
+  findMany(args: {
+    orderBy: { name: 'asc' | 'desc' };
+    select: { id: true; name: true };
+  }): Promise<OccupationListItem[]>;
+  findUnique(args: {
+    where: { id: number };
+    select: { id: true };
+  }): Promise<OccupationIdOnly | null>;
+}
+
 @Injectable()
 export class AuthService {
+  private getOccupationDelegate(): OccupationDelegate {
+    return this.prisma.occupation as unknown as OccupationDelegate;
+  }
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private redisService: RedisService,
     private mailService: MailService,
   ) {}
+
+  getOccupations(): Promise<OccupationListItem[]> {
+    const occupationDelegate = this.getOccupationDelegate();
+
+    return occupationDelegate.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+  }
 
   async register(data: CreateUserDto) {
     const existingUser = await this.prisma.user.findUnique({
@@ -33,12 +65,34 @@ export class AuthService {
     if (existingUser) {
       throw new ConflictException('El email ya está registrado');
     }
+
+    if (data.occupationId) {
+      const occupationDelegate = this.getOccupationDelegate();
+      const occupationId = Number(data.occupationId);
+      const occupation = await occupationDelegate.findUnique({
+        where: { id: occupationId },
+        select: { id: true },
+      });
+
+      if (!occupation) {
+        throw new NotFoundException('Ocupación no encontrada');
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
     const user = await this.prisma.user.create({
       data: {
         ...data,
         password: hashedPassword,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        occupationId: true,
       },
     });
 
@@ -74,7 +128,9 @@ export class AuthService {
     const key = `verify:email:${email}`;
     const stored = await this.redisService.get(key);
     if (!stored || stored !== code) {
-      throw new UnauthorizedException('Código incorrecto o expirado');
+      throw new UnauthorizedException(
+        'Credenciales incorrectas o código expirado',
+      );
     }
 
     // Actualizar el usuario como verificado en la base de datos
@@ -90,6 +146,19 @@ export class AuthService {
     // Eliminar el código para que no se reutilice
     await this.redisService.del(key);
     return { message: 'Verificación exitosa' };
+  }
+
+  async getVerificationStatus(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { email: true, isVerified: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    return user;
   }
 
   async login({ email, password }: LoginDto) {

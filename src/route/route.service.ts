@@ -16,7 +16,7 @@ export class RouteService {
     return await this.prisma.route.create({
       data: {
         origin: dto.origin,
-        destiny: dto.destiny,
+        destination: dto.destination,
         truckId: dto.truckId,
         points: {
           create: this.mapPoints(dto.points),
@@ -56,7 +56,9 @@ export class RouteService {
         where: { id },
         data: {
           ...(dto.origin !== undefined && { origin: dto.origin }),
-          ...(dto.destiny !== undefined && { destiny: dto.destiny }),
+          ...(dto.destination !== undefined && {
+            destination: dto.destination,
+          }),
           ...(dto.truckId !== undefined && { truckId: dto.truckId }),
           ...(dto.points && {
             points: { create: this.mapPoints(dto.points) },

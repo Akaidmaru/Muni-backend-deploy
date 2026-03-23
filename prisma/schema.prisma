@@ -14,7 +14,9 @@ model User {
   name      String?
   password  String
   createdAt DateTime          @default(now())
-  role      UserRole          @default(CLIENT)
+  role      UserRole          @default(PATIENT)
+  occupationId Int?
+  occupation Occupation?      @relation(fields: [occupationId], references: [id])
   trucks    TruckAssignment[]
   isVerified Boolean          @default(false)
 }
@@ -47,14 +49,21 @@ model TruckAssignment {
 model Route {
   id      Int    @id @default(autoincrement())
   origin  String
-  destiny String
+  destination String
   truckId Int
   truck   Truck  @relation(fields: [truckId], references: [id])
   points  RoutePoint[]
 }
 
+model Occupation {
+  id   Int    @id @default(autoincrement())
+  name String
+  users User[]
+}
+
 enum UserRole {
-  CLIENT
+  PATIENT
+  EMPLOYEE
   DRIVER
   ADMIN
 }

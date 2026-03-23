@@ -1,11 +1,13 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
   HttpCode,
   HttpStatus,
   UseGuards,
   Req,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -13,12 +15,45 @@ import { CreateUserDto } from './dto/create-user-dto';
 import { LoginDto } from './dto/login-dto';
 import { SendVerificationCodeDto } from './dto/send-verification-code.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
+import { CheckVerificationStatusDto } from './dto/check-verification-status.dto';
 import type { Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Get('occupations')
+  @ApiOperation({ summary: 'Listar ocupaciones disponibles para registro' })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado de ocupaciones',
+    schema: {
+      example: [
+        { id: 1, name: 'Student' },
+        { id: 2, name: 'Employee' },
+      ],
+    },
+  })
+  async getOccupations(): Promise<Array<{ id: number; name: string }>> {
+    const occupationsUnknown: unknown = await this.authService.getOccupations();
+    if (!Array.isArray(occupationsUnknown)) {
+      throw new InternalServerErrorException('Formato de ocupaciones inválido');
+    }
+
+    const occupations = occupationsUnknown
+      .filter((item): item is { id: number; name: string } => {
+        if (!item || typeof item !== 'object') {
+          return false;
+        }
+
+        const record = item as Record<string, unknown>;
+        return typeof record.id === 'number' && typeof record.name === 'string';
+      })
+      .map((item) => ({ id: item.id, name: item.name }));
+
+    return occupations;
+  }
 
   @Post('register')
   @ApiOperation({ summary: 'Registrar nuevo usuario' })
@@ -83,6 +118,28 @@ export class AuthController {
   })
   async verifyCode(@Body() dto: VerifyCodeDto) {
     return this.authService.verifyCode(dto);
+  }
+
+  @Post('verification-status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Consultar si un usuario está verificado' })
+  @ApiBody({
+    description: 'Email del usuario a consultar',
+    required: true,
+    type: CheckVerificationStatusDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado de verificación del usuario',
+    examples: {
+      success: {
+        summary: 'Estado consultado',
+        value: { email: 'usuario@email.com', isVerified: true },
+      },
+    },
+  })
+  async getVerificationStatus(@Body() dto: CheckVerificationStatusDto) {
+    return this.authService.getVerificationStatus(dto.email);
   }
 
   @Post('login')

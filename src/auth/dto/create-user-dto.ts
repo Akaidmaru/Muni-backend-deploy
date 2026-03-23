@@ -1,9 +1,27 @@
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsInt,
+  Min,
+} from 'class-validator';
 
 export class CreateUserDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'occupationId debe ser un entero' })
+  @Min(1, { message: 'occupationId debe ser mayor que 0' })
+  occupationId?: number;
 
   @IsEmail({}, { message: 'El email debe ser válido' })
   email: string;

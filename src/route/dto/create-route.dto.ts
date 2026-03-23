@@ -7,7 +7,7 @@ export class CreateRouteDto {
   origin: string;
 
   @IsString()
-  destiny: string;
+  destination: string;
 
   @IsNumber()
   truckId: number;
