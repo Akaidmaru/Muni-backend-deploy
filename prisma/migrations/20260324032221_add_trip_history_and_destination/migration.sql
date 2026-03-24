@@ -6,8 +6,7 @@
 
 */
 -- AlterTable
-ALTER TABLE "Route" DROP COLUMN "destiny",
-ADD COLUMN     "destination" TEXT NOT NULL;
+ALTER TABLE "Route" RENAME COLUMN "destiny" TO "destination";
 
 -- CreateTable
 CREATE TABLE "Destination" (
@@ -50,10 +49,10 @@ CREATE INDEX "TripHistory_destinationId_idx" ON "TripHistory"("destinationId");
 CREATE INDEX "TripHistory_employeeId_idx" ON "TripHistory"("employeeId");
 
 -- AddForeignKey
-ALTER TABLE "TripHistory" ADD CONSTRAINT "TripHistory_truckId_fkey" FOREIGN KEY ("truckId") REFERENCES "Truck"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TripHistory" ADD CONSTRAINT "TripHistory_truckId_fkey" FOREIGN KEY ("truckId") REFERENCES "Truck"("id");
 
 -- AddForeignKey
-ALTER TABLE "TripHistory" ADD CONSTRAINT "TripHistory_destinationId_fkey" FOREIGN KEY ("destinationId") REFERENCES "Destination"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TripHistory" ADD CONSTRAINT "TripHistory_destinationId_fkey" FOREIGN KEY ("destinationId") REFERENCES "Destination"("id");
 
 -- AddForeignKey
-ALTER TABLE "TripHistory" ADD CONSTRAINT "TripHistory_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TripHistory" ADD CONSTRAINT "TripHistory_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "User"("id");
