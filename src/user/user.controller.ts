@@ -8,6 +8,7 @@ import {
   UseGuards,
   Req,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,6 +24,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { Request } from 'express';
+import { UserRole } from '@prisma/client';
 
 interface AuthenticatedRequest extends Request {
   user: { id: number };
@@ -32,6 +34,95 @@ interface AuthenticatedRequest extends Request {
 @ApiBearerAuth()
 @Controller('users')
 export class UserController {
+  private parseRolesQuery(
+    rolesParam?: string | string[],
+  ): UserRole[] | undefined {
+    if (!rolesParam) {
+      return undefined;
+    }
+
+    const rawRoles = Array.isArray(rolesParam)
+      ? rolesParam.flatMap((role) => role.split(','))
+      : rolesParam.split(',');
+
+    const normalizedRoles = rawRoles
+      .map((role) => role.trim().toUpperCase())
+      .filter(Boolean);
+
+    if (normalizedRoles.length === 0) {
+      return undefined;
+    }
+
+    const validRoles = Object.values(UserRole);
+    const invalidRoles = normalizedRoles.filter(
+      (role) => !validRoles.includes(role as UserRole),
+    );
+
+    if (invalidRoles.length > 0) {
+      throw new BadRequestException(
+        `Roles inválidos: ${invalidRoles.join(', ')}`,
+      );
+    }
+
+    return [...new Set(normalizedRoles)] as UserRole[];
+  }
+
+  @Get('by-roles')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Listar usuarios por uno o varios roles. Solo ADMIN puede incluir el rol ADMIN',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Listar usuarios por uno o varios roles. Solo ADMIN puede incluir el rol ADMIN',
+    examples: {
+      success: {
+        summary: 'Usuarios filtrados por rol',
+        value: [
+          { id: 2, email: 'driver@email.com', role: 'DRIVER' },
+          { id: 3, email: 'employee@email.com', role: 'EMPLOYEE' },
+        ],
+      },
+    },
+  })
+  async getUsersByRoles(
+    @Req() req: AuthenticatedRequest,
+    @Query('roles') roles?: string | string[],
+  ): Promise<unknown> {
+    const parsedRoles = this.parseRolesQuery(roles);
+    const users: unknown = await this.userService.findByRoles(
+      req.user.id,
+      parsedRoles,
+    );
+    return users;
+  }
+
+  @Get('me/trucks')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Listar camiones asignados al usuario autenticado',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Listar camiones asignados al usuario autenticado',
+    examples: {
+      success: {
+        summary: 'Camiones asignados',
+        value: [
+          { id: 1, plate: 'ABC123', model: 'Volvo FH' },
+          { id: 2, plate: 'DEF456', model: 'Scania R' },
+        ],
+      },
+    },
+  })
+  getMyTrucks(@Req() req: AuthenticatedRequest) {
+    return this.userService.getTrucksOfUser(Number(req.user.id));
+  }
+
   @Get('verified')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')

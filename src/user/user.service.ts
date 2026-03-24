@@ -13,10 +13,72 @@ import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
+import { UserRole } from '@prisma/client';
+
+export interface UserListItem {
+  id: number;
+  email: string;
+  phone: string | null;
+  name: string | null;
+  createdAt: Date;
+  role: UserRole;
+  occupationId: number | null;
+  isVerified: boolean;
+}
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findByRoles(
+    requesterId: number,
+    roles?: UserRole[],
+  ): Promise<UserListItem[]> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const allRoles = Object.values(UserRole);
+    const requestedRoles = roles && roles.length > 0 ? roles : allRoles;
+
+    if (
+      requester.role !== UserRole.ADMIN &&
+      requestedRoles.includes(UserRole.ADMIN)
+    ) {
+      throw new ForbiddenException(
+        'Solo un usuario ADMIN puede listar usuarios con rol ADMIN',
+      );
+    }
+
+    const allowedRoles =
+      requester.role === UserRole.ADMIN
+        ? requestedRoles
+        : requestedRoles.filter((role) => role !== UserRole.ADMIN);
+
+    return this.prisma.user.findMany({
+      where: {
+        role: {
+          in: allowedRoles,
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        name: true,
+        createdAt: true,
+        role: true,
+        occupationId: true,
+        isVerified: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+  }
 
   async create(dto: CreateUserDto) {
     const hashedPassword = await bcrypt.hash(dto.password, 10);

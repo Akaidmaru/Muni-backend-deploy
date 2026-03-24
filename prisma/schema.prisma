@@ -18,6 +18,7 @@ model User {
   occupationId Int?
   occupation Occupation?      @relation(fields: [occupationId], references: [id])
   trucks    TruckAssignment[]
+  tripHistories TripHistory[]
   isVerified Boolean          @default(false)
 }
 
@@ -27,6 +28,35 @@ model Truck {
   model  String
   routes Route[]
   users  TruckAssignment[]
+  tripHistories TripHistory[]
+}
+
+model Destination {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  tripHistories TripHistory[]
+}
+
+model TripHistory {
+  id            Int         @id @default(autoincrement())
+  date          DateTime
+  startTime     String
+  endTime       String
+  startKm       Float
+  endKm         Float
+  truckId       Int
+  destinationId Int
+  employeeId    Int
+  truck         Truck       @relation(fields: [truckId], references: [id])
+  destination   Destination @relation(fields: [destinationId], references: [id])
+  employee      User        @relation(fields: [employeeId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@index([date])
+  @@index([truckId])
+  @@index([destinationId])
+  @@index([employeeId])
 }
 
 model RoutePoint {
