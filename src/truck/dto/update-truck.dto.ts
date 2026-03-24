@@ -1,5 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateTruckDto } from './create-truck.dto';
+import { IsNumber, IsOptional, Min } from 'class-validator';
 
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -15,4 +16,13 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
     description: 'Modelo nuevo del camión',
   })
   model?: string;
+
+  @ApiPropertyOptional({
+    example: 130500,
+    description: 'Kilometraje actualizado del camión',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  mileage?: number;
 }

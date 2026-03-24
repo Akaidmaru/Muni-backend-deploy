@@ -122,6 +122,9 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('Usuario no encontrado');
     }
+    if (user.isVerified) {
+      throw new ConflictException('El usuario ya se encuentra verificado');
+    }
 
     const key = `verify:email:${email}`;
     await this.mailService.sendVerificationCode(email, code);
@@ -132,6 +135,14 @@ export class AuthService {
   }
 
   async verifyCode({ email, code }: { email: string; code: string }) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+    if (user.isVerified) {
+      throw new ConflictException('El usuario ya se encuentra verificado');
+    }
+
     const key = `verify:email:${email}`;
     const stored = await this.redisService.get(key);
     if (!stored || stored !== code) {
@@ -141,10 +152,6 @@ export class AuthService {
     }
 
     // Actualizar el usuario como verificado en la base de datos
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
     await this.prisma.user.update({
       where: { email },
       data: { isVerified: true },

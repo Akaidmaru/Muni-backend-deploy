@@ -32,7 +32,7 @@ export class TruckController {
     examples: {
       success: {
         summary: 'Camión creado',
-        value: { id: 1, plate: 'ABC123', model: 'Volvo FH' },
+        value: { id: 1, plate: 'ABC123', model: 'Volvo FH', mileage: 125000 },
       },
     },
   })
@@ -49,8 +49,8 @@ export class TruckController {
       success: {
         summary: 'Camiones listados',
         value: [
-          { id: 1, plate: 'ABC123', model: 'Volvo FH' },
-          { id: 2, plate: 'DEF456', model: 'Scania R' },
+          { id: 1, plate: 'ABC123', model: 'Volvo FH', mileage: 125000 },
+          { id: 2, plate: 'DEF456', model: 'Scania R', mileage: 98000 },
         ],
       },
     },
@@ -67,7 +67,7 @@ export class TruckController {
     examples: {
       success: {
         summary: 'Camión encontrado',
-        value: { id: 1, plate: 'ABC123', model: 'Volvo FH' },
+        value: { id: 1, plate: 'ABC123', model: 'Volvo FH', mileage: 125000 },
       },
     },
   })
@@ -83,7 +83,7 @@ export class TruckController {
     examples: {
       success: {
         summary: 'Camión actualizado',
-        value: { id: 1, plate: 'DEF456', model: 'Scania R' },
+        value: { id: 1, plate: 'DEF456', model: 'Scania R', mileage: 130500 },
       },
     },
   })

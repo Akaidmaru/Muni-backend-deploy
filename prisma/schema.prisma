@@ -26,6 +26,7 @@ model Truck {
   id     Int               @id @default(autoincrement())
   plate  String            @unique
   model  String
+  mileage Float            @default(0)
   routes Route[]
   users  TruckAssignment[]
   tripHistories TripHistory[]

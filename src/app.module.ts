@@ -6,6 +6,7 @@ import { RedisModule } from './redis/redis.module';
 import { TruckModule } from './truck/truck.module';
 import { RouteModule } from './route/route.module';
 import { OccupationModule } from './occupation/occupation.module';
+import { DestinationModule } from './destination/destination.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { OccupationModule } from './occupation/occupation.module';
     TruckModule,
     RouteModule,
     OccupationModule,
+    DestinationModule,
   ],
   controllers: [],
   providers: [],
