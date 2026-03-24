@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "TripHistory"
+  ALTER COLUMN "endTime" DROP NOT NULL,
+  ALTER COLUMN "endKm" DROP NOT NULL;

@@ -10,6 +10,7 @@ import { UpdateDestinationDto } from './dto/update-destination.dto';
 export type DestinationResponse = {
   id: number;
   name: string;
+  active: boolean;
 };
 
 @Injectable()
@@ -30,6 +31,7 @@ export class DestinationService {
       select: {
         id: true,
         name: true,
+        active: true,
       },
     });
 
@@ -42,6 +44,21 @@ export class DestinationService {
       select: {
         id: true,
         name: true,
+        active: true,
+      },
+    });
+
+    return destinations as DestinationResponse[];
+  }
+
+  async findAllActive(): Promise<DestinationResponse[]> {
+    const destinations = await this.prisma.destination.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        active: true,
       },
     });
 
@@ -54,6 +71,7 @@ export class DestinationService {
       select: {
         id: true,
         name: true,
+        active: true,
       },
     });
 
@@ -89,6 +107,7 @@ export class DestinationService {
       select: {
         id: true,
         name: true,
+        active: true,
       },
     });
 
@@ -113,6 +132,7 @@ export class DestinationService {
       select: {
         id: true,
         name: true,
+        active: true,
       },
     });
 

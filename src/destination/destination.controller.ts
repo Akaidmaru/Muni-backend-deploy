@@ -22,9 +22,16 @@ export class DestinationController {
   constructor(private readonly destinationService: DestinationService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   async findAll(): Promise<DestinationResponse[]> {
     return await this.destinationService.findAll();
+  }
+
+  @Get('active')
+  @UseGuards(JwtAuthGuard)
+  async findAllActive(): Promise<DestinationResponse[]> {
+    return await this.destinationService.findAllActive();
   }
 
   @Get(':id')
