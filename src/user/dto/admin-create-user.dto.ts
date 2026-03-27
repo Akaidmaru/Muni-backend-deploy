@@ -47,6 +47,6 @@ export class AdminCreateUserDto {
     description: 'Rol del usuario',
   })
   @IsOptional()
-  @IsEnum(UserRole, { message: 'El rol debe ser CLIENT, DRIVER o ADMIN' })
+  @IsEnum(UserRole, { message: 'El rol debe ser EMPLOYEE, DRIVER o ADMIN' })
   role?: UserRole;
 }

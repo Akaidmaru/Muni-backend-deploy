@@ -14,7 +14,7 @@ model User {
   name      String?
   password  String
   createdAt DateTime          @default(now())
-  role      UserRole          @default(PATIENT)
+  role      UserRole          @default(EMPLOYEE)
   occupationId Int?
   occupation Occupation?      @relation(fields: [occupationId], references: [id])
   trucks    TruckAssignment[]
@@ -38,6 +38,18 @@ model Destination {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   tripHistories TripHistory[]
+  patients  Patient[]
+}
+
+model Patient {
+  id            Int         @id @default(autoincrement())
+  name          String
+  destinationId Int
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  tripHistories TripHistory[]
+
+  @@index([destinationId])
+  @@unique([destinationId, name])
 }
 
 model TripHistory {
@@ -45,20 +57,25 @@ model TripHistory {
   date          DateTime
   startTime     String
   endTime       String?
+  status        TripHistoryStatus @default(DRIVER_FILLING)
   startKm       Float
   endKm         Float?
   truckId       Int
   destinationId Int
   employeeId    Int
+  patientId     Int?
   truck         Truck       @relation(fields: [truckId], references: [id])
   destination   Destination @relation(fields: [destinationId], references: [id])
   employee      User        @relation(fields: [employeeId], references: [id])
+  patient       Patient?    @relation(fields: [patientId], references: [id])
   createdAt     DateTime    @default(now())
 
   @@index([date])
   @@index([truckId])
   @@index([destinationId])
   @@index([employeeId])
+  @@index([patientId])
+  @@index([status])
 }
 
 model RoutePoint {
@@ -94,8 +111,13 @@ model Occupation {
 }
 
 enum UserRole {
-  PATIENT
   EMPLOYEE
   DRIVER
   ADMIN
+}
+
+enum TripHistoryStatus {
+  DRIVER_FILLING
+  EMPLOYEE_SIGNED
+  COMPLETED
 }

@@ -203,7 +203,7 @@ export class UserController {
         summary: 'Usuarios listados',
         value: [
           { id: 1, email: 'admin@email.com', role: 'ADMIN' },
-          { id: 2, email: 'user@email.com', role: 'CLIENT' },
+          { id: 2, email: 'employee@email.com', role: 'EMPLOYEE' },
         ],
       },
     },

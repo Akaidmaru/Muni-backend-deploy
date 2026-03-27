@@ -4,8 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, TripHistoryStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
 
@@ -15,6 +16,7 @@ type FindAllOptions = {
   from?: string;
   to?: string;
   name?: string;
+  patient?: string;
   license?: string;
 };
 
@@ -68,6 +70,17 @@ export class TripHistoryService {
               },
             },
           ],
+        },
+      });
+    }
+
+    if (options.patient) {
+      whereAnd.push({
+        patient: {
+          name: {
+            contains: options.patient,
+            mode: 'insensitive',
+          },
         },
       });
     }
@@ -133,6 +146,15 @@ export class TripHistoryService {
           select: {
             id: true,
             name: true,
+            patients: {
+              select: {
+                id: true,
+                name: true,
+              },
+              orderBy: {
+                name: 'asc',
+              },
+            },
           },
         },
         employee: {
@@ -140,6 +162,12 @@ export class TripHistoryService {
             id: true,
             name: true,
             email: true,
+          },
+        },
+        patient: {
+          select: {
+            id: true,
+            name: true,
           },
         },
       },
@@ -200,7 +228,11 @@ export class TripHistoryService {
     const pagination = this.parsePagination(options);
     const whereAnd = this.buildFilters(options);
 
-    if (requester.role !== UserRole.ADMIN) {
+    if (requester.role === UserRole.EMPLOYEE) {
+      whereAnd.push({
+        employeeId: userId,
+      });
+    } else if (requester.role !== UserRole.ADMIN) {
       whereAnd.push({
         truck: {
           users: {
@@ -282,6 +314,7 @@ export class TripHistoryService {
         date: new Date(),
         startTime: dto.startTime,
         endTime: null,
+        status: TripHistoryStatus.DRIVER_FILLING,
         startKm,
         endKm: null,
         truckId: truck.id,
@@ -295,9 +328,106 @@ export class TripHistoryService {
         endTime: true,
         startKm: true,
         endKm: true,
+        status: true,
         truckId: true,
         destinationId: true,
         employeeId: true,
+        patientId: true,
+        patient: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  async assignPatient(
+    userId: number,
+    tripHistoryId: number,
+    dto: AssignTripPatientDto,
+  ) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: {
+        id: true,
+        destinationId: true,
+        employeeId: true,
+        status: true,
+      },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    if (
+      requester.role !== UserRole.ADMIN &&
+      requester.role !== UserRole.EMPLOYEE
+    ) {
+      throw new ForbiddenException('No tiene permisos para asignar pacientes');
+    }
+
+    if (requester.role === UserRole.EMPLOYEE && tripHistory.employeeId !== userId) {
+      throw new ForbiddenException(
+        'Solo el funcionario asignado puede registrar el paciente de este viaje',
+      );
+    }
+
+    const patient = await this.prisma.patient.findFirst({
+      where: {
+        id: dto.patientId,
+        destinationId: tripHistory.destinationId,
+      },
+      select: { id: true, name: true },
+    });
+
+    if (!patient) {
+      throw new BadRequestException(
+        'El paciente seleccionado no pertenece al destino del viaje',
+      );
+    }
+
+    if (tripHistory.status !== TripHistoryStatus.EMPLOYEE_SIGNED) {
+      throw new BadRequestException(
+        'Solo se puede completar un viaje en estado EMPLOYEE_SIGNED',
+      );
+    }
+
+    return this.prisma.tripHistory.update({
+      where: { id: tripHistory.id },
+      data: {
+        patientId: patient.id,
+        status: TripHistoryStatus.COMPLETED,
+      },
+      select: {
+        id: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        startKm: true,
+        endKm: true,
+        status: true,
+        truckId: true,
+        destinationId: true,
+        employeeId: true,
+        patientId: true,
+        patient: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
   }
@@ -309,6 +439,7 @@ export class TripHistoryService {
         id: true,
         truckId: true,
         startKm: true,
+        status: true,
       },
     });
 
@@ -330,11 +461,18 @@ export class TripHistoryService {
       );
     }
 
+    if (tripHistory.status !== TripHistoryStatus.DRIVER_FILLING) {
+      throw new BadRequestException(
+        'El viaje debe estar en estado DRIVER_FILLING para finalizarse',
+      );
+    }
+
     return this.prisma.tripHistory.update({
       where: { id: tripHistory.id },
       data: {
         endTime: dto.endTime,
         endKm: tripHistory.startKm,
+        status: TripHistoryStatus.EMPLOYEE_SIGNED,
       },
       select: {
         id: true,
@@ -343,9 +481,17 @@ export class TripHistoryService {
         endTime: true,
         startKm: true,
         endKm: true,
+        status: true,
         truckId: true,
         destinationId: true,
         employeeId: true,
+        patientId: true,
+        patient: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
   }
