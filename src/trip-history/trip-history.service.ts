@@ -18,20 +18,16 @@ type FindAllOptions = {
   license?: string;
 };
 
+type PaginationData = {
+  page: number;
+  pageSize: number;
+};
+
 @Injectable()
 export class TripHistoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(userId: number, options: FindAllOptions) {
-    const requester = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
-
-    if (!requester) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
-
+  private parsePagination(options: FindAllOptions): PaginationData {
     const page =
       Number.isInteger(options.page) && options.page > 0 ? options.page : 1;
     const pageSize =
@@ -39,19 +35,13 @@ export class TripHistoryService {
         ? Math.min(options.pageSize, 100)
         : 10;
 
-    const whereAnd: Prisma.TripHistoryWhereInput[] = [];
+    return { page, pageSize };
+  }
 
-    if (requester.role !== UserRole.ADMIN) {
-      whereAnd.push({
-        truck: {
-          users: {
-            some: {
-              userId,
-            },
-          },
-        },
-      });
-    }
+  private buildFilters(
+    options: FindAllOptions,
+  ): Prisma.TripHistoryWhereInput[] {
+    const whereAnd: Prisma.TripHistoryWhereInput[] = [];
 
     if (options.license) {
       whereAnd.push({
@@ -104,12 +94,19 @@ export class TripHistoryService {
       }
     }
 
+    return whereAnd;
+  }
+
+  private async findWithWhere(
+    whereAnd: Prisma.TripHistoryWhereInput[],
+    pagination: PaginationData,
+  ) {
     const where: Prisma.TripHistoryWhereInput =
       whereAnd.length > 0 ? { AND: whereAnd } : {};
 
     const total = await this.prisma.tripHistory.count({ where });
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const safePage = Math.min(page, totalPages);
+    const totalPages = Math.max(1, Math.ceil(total / pagination.pageSize));
+    const safePage = Math.min(pagination.page, totalPages);
 
     const items = await this.prisma.tripHistory.findMany({
       where,
@@ -118,6 +115,18 @@ export class TripHistoryService {
           select: {
             id: true,
             plate: true,
+            users: {
+              select: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                  },
+                },
+              },
+            },
           },
         },
         destination: {
@@ -137,17 +146,73 @@ export class TripHistoryService {
       orderBy: {
         date: 'desc',
       },
-      skip: (safePage - 1) * pageSize,
-      take: pageSize,
+      skip: (safePage - 1) * pagination.pageSize,
+      take: pagination.pageSize,
+    });
+
+    const mappedItems = items.map((item) => {
+      const driverAssignment = item.truck.users.find(
+        (assignment) => assignment.user.role === UserRole.DRIVER,
+      );
+
+      return {
+        ...item,
+        truck: {
+          id: item.truck.id,
+          plate: item.truck.plate,
+        },
+        driver: driverAssignment
+          ? {
+              id: driverAssignment.user.id,
+              name: driverAssignment.user.name,
+              email: driverAssignment.user.email,
+            }
+          : null,
+      };
     });
 
     return {
-      items,
+      items: mappedItems,
       total,
       page: safePage,
-      pageSize,
+      pageSize: pagination.pageSize,
       totalPages,
     };
+  }
+
+  async findAll(options: FindAllOptions) {
+    const pagination = this.parsePagination(options);
+    const whereAnd = this.buildFilters(options);
+
+    return this.findWithWhere(whereAnd, pagination);
+  }
+
+  async findByUserAccess(userId: number, options: FindAllOptions) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const pagination = this.parsePagination(options);
+    const whereAnd = this.buildFilters(options);
+
+    if (requester.role !== UserRole.ADMIN) {
+      whereAnd.push({
+        truck: {
+          users: {
+            some: {
+              userId,
+            },
+          },
+        },
+      });
+    }
+
+    return this.findWithWhere(whereAnd, pagination);
   }
 
   async startTrip(userId: number, dto: StartTripDto) {
