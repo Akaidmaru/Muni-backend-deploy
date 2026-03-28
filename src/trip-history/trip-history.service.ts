@@ -378,7 +378,10 @@ export class TripHistoryService {
       throw new ForbiddenException('No tiene permisos para asignar pacientes');
     }
 
-    if (requester.role === UserRole.EMPLOYEE && tripHistory.employeeId !== userId) {
+    if (
+      requester.role === UserRole.EMPLOYEE &&
+      tripHistory.employeeId !== userId
+    ) {
       throw new ForbiddenException(
         'Solo el funcionario asignado puede registrar el paciente de este viaje',
       );

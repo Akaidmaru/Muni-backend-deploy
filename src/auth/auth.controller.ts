@@ -17,6 +17,7 @@ import { LoginDto } from './dto/login-dto';
 import { SendVerificationCodeDto } from './dto/send-verification-code.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { CheckVerificationStatusDto } from './dto/check-verification-status.dto';
+import { UpdateVerificationEmailDto } from './dto/update-verification-email.dto';
 import type { Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -152,6 +153,31 @@ export class AuthController {
   })
   async getVerificationStatus(@Body() dto: CheckVerificationStatusDto) {
     return this.authService.getVerificationStatus(dto.email);
+  }
+
+  @Post('update-verification-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Actualizar correo pendiente de verificación' })
+  @ApiBody({
+    description: 'Correo actual y nuevo correo para reenviar código',
+    required: true,
+    type: UpdateVerificationEmailDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Correo actualizado y código reenviado',
+    examples: {
+      success: {
+        summary: 'Correo actualizado',
+        value: {
+          message: 'Correo de verificación actualizado y código reenviado',
+          email: 'nuevo@email.com',
+        },
+      },
+    },
+  })
+  async updateVerificationEmail(@Body() dto: UpdateVerificationEmailDto) {
+    return this.authService.updateVerificationEmail(dto);
   }
 
   @Post('login')
