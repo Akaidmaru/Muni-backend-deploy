@@ -179,9 +179,12 @@ export class TripHistoryService {
     });
 
     const mappedItems = items.map((item) => {
-      const driverAssignment = item.truck.users.find(
+      const preferredDriverAssignment = item.truck.users.find(
         (assignment) => assignment.user.role === UserRole.DRIVER,
       );
+      const fallbackAssignment = item.truck.users[0];
+      const resolvedDriverAssignment =
+        preferredDriverAssignment ?? fallbackAssignment;
 
       return {
         ...item,
@@ -189,11 +192,11 @@ export class TripHistoryService {
           id: item.truck.id,
           plate: item.truck.plate,
         },
-        driver: driverAssignment
+        driver: resolvedDriverAssignment
           ? {
-              id: driverAssignment.user.id,
-              name: driverAssignment.user.name,
-              email: driverAssignment.user.email,
+              id: resolvedDriverAssignment.user.id,
+              name: resolvedDriverAssignment.user.name,
+              email: resolvedDriverAssignment.user.email,
             }
           : null,
       };

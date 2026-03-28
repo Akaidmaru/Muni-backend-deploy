@@ -7,7 +7,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { CreateUserDto } from './dto/create-user-dto';
@@ -29,6 +29,11 @@ interface OccupationIdOnly {
   id: number;
 }
 
+interface OccupationWithName {
+  id: number;
+  name: string;
+}
+
 interface CurrentUserResponse {
   id: number;
   email: string;
@@ -43,8 +48,8 @@ interface OccupationDelegate {
   }): Promise<OccupationListItem[]>;
   findUnique(args: {
     where: { id: number };
-    select: { id: true };
-  }): Promise<OccupationIdOnly | null>;
+    select: { id: true; name: true };
+  }): Promise<OccupationWithName | null>;
 }
 
 @Injectable()
@@ -73,10 +78,12 @@ export class AuthService {
   }
 
   async register(data: CreateUserDto) {
+    const normalizedEmail = data.email.trim().toLowerCase();
     const normalizedPhone = data.phone?.trim() || undefined;
+    let role: UserRole = UserRole.EMPLOYEE;
 
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -99,12 +106,17 @@ export class AuthService {
       const occupationId = Number(data.occupationId);
       const occupation = await occupationDelegate.findUnique({
         where: { id: occupationId },
-        select: { id: true },
+        select: { id: true, name: true },
       });
 
       if (!occupation) {
         throw new NotFoundException('Ocupación no encontrada');
       }
+
+      role =
+        occupation.name.trim().toLowerCase() === 'conductor'
+          ? UserRole.DRIVER
+          : UserRole.EMPLOYEE;
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -113,7 +125,9 @@ export class AuthService {
       const user = await this.prisma.user.create({
         data: {
           ...data,
+          email: normalizedEmail,
           phone: normalizedPhone,
+          role,
           password: hashedPassword,
         },
         select: {
@@ -300,9 +314,18 @@ export class AuthService {
   }
 
   async login({ email, password }: LoginDto) {
+    const normalizedEmail = email.trim().toLowerCase();
+
     const user = await this.prisma.user.findUnique({
-      where: { email },
-      omit: { password: false },
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isVerified: true,
+        password: true,
+      },
     });
 
     if (!user) {
