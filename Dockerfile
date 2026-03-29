@@ -8,6 +8,11 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Prisma necesita DATABASE_URL para generate, usamos dummy para build
+ARG DATABASE_URL="postgresql://user:pass@localhost:5432/db?schema=public"
+ENV DATABASE_URL=${DATABASE_URL}
+
 RUN npx prisma generate && npm run build
 
 FROM node:20-bookworm-slim AS runner
