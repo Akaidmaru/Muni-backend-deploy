@@ -18,6 +18,9 @@ ENV DATABASE_URL=${DATABASE_URL}
 
 RUN npx prisma generate && npm run build
 
+# Verificar que el build generó los archivos
+RUN ls -la dist/ && test -f dist/main.js || (echo "ERROR: Build falló, dist/main.js no existe" && exit 1)
+
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
