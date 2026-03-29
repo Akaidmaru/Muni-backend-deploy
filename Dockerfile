@@ -4,6 +4,9 @@
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
 
+# Instalar OpenSSL para Prisma
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 RUN npm ci
 
@@ -17,6 +20,9 @@ RUN npx prisma generate && npm run build
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
+
+# Instalar OpenSSL para Prisma en runtime
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 ENV PORT=3000
