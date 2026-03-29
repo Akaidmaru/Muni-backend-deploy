@@ -1,9 +1,12 @@
-# Publicación manual a GHCR cuando quieras imágenes versionadas. No despliega a EC2/Ansible.
-# Ejecutar: Actions → "Publish to GHCR" → Run workflow.
+# Publicación automática a GHCR en push a feature/JMMB17
+# También se puede ejecutar manualmente desde Actions
 
 name: Publish to GHCR
 
 on:
+  push:
+    branches:
+      - feature/JMMB17
   workflow_dispatch:
 
 permissions:
