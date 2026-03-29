@@ -24,7 +24,8 @@ RUN set -ex && \
     npm run build && \
     echo "✓ Build completado" && \
     ls -lah dist/ && \
-    test -f dist/main.js || (echo "ERROR: dist/main.js no existe" && exit 1)
+    ls -lah dist/src/ && \
+    test -f dist/src/main.js || (echo "ERROR: dist/src/main.js no existe" && exit 1)
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
@@ -55,4 +56,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||3000)+'/api-docs',r=>process.exit(r.statusCode===200||r.statusCode===301||r.statusCode===302?0:1)).on('error',()=>process.exit(1))"
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
