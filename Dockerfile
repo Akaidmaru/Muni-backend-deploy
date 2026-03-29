@@ -14,12 +14,17 @@ COPY . .
 
 # Prisma necesita DATABASE_URL para generate, usamos dummy para build
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/db?schema=public"
-ENV DATABASE_URL=${DATABASE_URL}
 
-RUN npx prisma generate && npm run build
+# Crear .env temporal para que dotenv no falle en prisma.config.ts
+RUN echo "DATABASE_URL=${DATABASE_URL}" > .env
 
-# Verificar que el build generó los archivos
-RUN ls -la dist/ && test -f dist/main.js || (echo "ERROR: Build falló, dist/main.js no existe" && exit 1)
+# Build con output verbose para debugging
+RUN set -ex && \
+    npx prisma generate && \
+    npm run build && \
+    echo "✓ Build completado" && \
+    ls -lah dist/ && \
+    test -f dist/main.js || (echo "ERROR: dist/main.js no existe" && exit 1)
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
