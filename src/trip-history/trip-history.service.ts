@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
+import { UpdateTripHistoryDto } from './dto/update-trip-history.dto';
 
 type FindAllOptions = {
   page: number;
@@ -500,5 +501,132 @@ export class TripHistoryService {
         },
       },
     });
+  }
+
+  async updateByAdmin(tripHistoryId: number, dto: UpdateTripHistoryDto) {
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: {
+        id: true,
+        startKm: true,
+        endKm: true,
+        truckId: true,
+        destinationId: true,
+      },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    const nextStartKm = dto.startKm ?? tripHistory.startKm;
+    const nextEndKm = dto.endKm ?? tripHistory.endKm;
+
+    if (nextEndKm !== null && nextEndKm < nextStartKm) {
+      throw new BadRequestException(
+        'El kilometraje final no puede ser menor al kilometraje inicial',
+      );
+    }
+
+    if (dto.truckId !== undefined) {
+      const truck = await this.prisma.truck.findUnique({
+        where: { id: dto.truckId },
+        select: { id: true },
+      });
+
+      if (!truck) {
+        throw new NotFoundException('Camion no encontrado');
+      }
+    }
+
+    if (dto.destinationId !== undefined) {
+      const destination = await this.prisma.destination.findUnique({
+        where: { id: dto.destinationId },
+        select: { id: true },
+      });
+
+      if (!destination) {
+        throw new NotFoundException('Destino no encontrado');
+      }
+    }
+
+    const data: Prisma.TripHistoryUpdateInput = {
+      ...(dto.date ? { date: new Date(dto.date) } : {}),
+      ...(dto.startTime !== undefined ? { startTime: dto.startTime } : {}),
+      ...(dto.endTime !== undefined ? { endTime: dto.endTime } : {}),
+      ...(dto.status !== undefined ? { status: dto.status } : {}),
+      ...(dto.startKm !== undefined ? { startKm: dto.startKm } : {}),
+      ...(dto.endKm !== undefined ? { endKm: dto.endKm } : {}),
+      ...(dto.truckId !== undefined ? { truckId: dto.truckId } : {}),
+      ...(dto.destinationId !== undefined
+        ? { destinationId: dto.destinationId }
+        : {}),
+    };
+
+    const updatedTrip = await this.prisma.tripHistory.update({
+      where: { id: tripHistory.id },
+      data,
+      include: {
+        truck: {
+          select: {
+            id: true,
+            plate: true,
+            users: {
+              select: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        destination: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        patient: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    const preferredDriverAssignment = updatedTrip.truck.users.find(
+      (assignment) => assignment.user.role === UserRole.DRIVER,
+    );
+    const fallbackAssignment = updatedTrip.truck.users[0];
+    const resolvedDriverAssignment =
+      preferredDriverAssignment ?? fallbackAssignment;
+
+    return {
+      ...updatedTrip,
+      truck: {
+        id: updatedTrip.truck.id,
+        plate: updatedTrip.truck.plate,
+      },
+      driver: resolvedDriverAssignment
+        ? {
+            id: resolvedDriverAssignment.user.id,
+            name: resolvedDriverAssignment.user.name,
+            email: resolvedDriverAssignment.user.email,
+          }
+        : null,
+    };
   }
 }
