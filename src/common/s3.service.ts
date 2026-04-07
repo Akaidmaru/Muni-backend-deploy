@@ -4,7 +4,11 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export type UploadBase64ImageParams = {
@@ -32,7 +36,8 @@ export class S3Service {
     }
 
     this.bucketName = bucketName;
-    this.signedUrlExpiresInSeconds = Number(process.env.AWS_S3_SIGNED_URL_TTL) || 3600;
+    this.signedUrlExpiresInSeconds =
+      Number(process.env.AWS_S3_SIGNED_URL_TTL) || 3600;
     this.client = new S3Client({
       region,
       credentials: {
