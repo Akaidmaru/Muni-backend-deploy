@@ -8,28 +8,30 @@ datasource db {
 }
 
 model User {
-  id        Int               @id @default(autoincrement())
-  email     String            @unique
-  phone     String?           @unique
-  name      String?
-  password  String
-  createdAt DateTime          @default(now())
-  role      UserRole          @default(EMPLOYEE)
-  occupationId Int?
-  occupation Occupation?      @relation(fields: [occupationId], references: [id])
-  trucks    TruckAssignment[]
-  tripHistories TripHistory[]
-  isVerified Boolean          @default(false)
+  id                      Int               @id @default(autoincrement())
+  email                   String            @unique
+  phone                   String?           @unique
+  name                    String?
+  password                String
+  createdAt               DateTime          @default(now())
+  role                    UserRole          @default(EMPLOYEE)
+  occupationId            Int?
+  occupation              Occupation?      @relation(fields: [occupationId], references: [id])
+  trucks                  TruckAssignment[]
+  tripHistories           TripHistory[]
+  vehicleMaintenanceRecords VehicleMaintenanceRecord[]
+  isVerified              Boolean          @default(false)
 }
 
 model Truck {
-  id     Int               @id @default(autoincrement())
-  plate  String            @unique
-  model  String
-  mileage Float            @default(0)
-  routes Route[]
-  users  TruckAssignment[]
-  tripHistories TripHistory[]
+  id                      Int               @id @default(autoincrement())
+  plate                   String            @unique
+  model                   String
+  mileage                 Float            @default(0)
+  routes                  Route[]
+  users                   TruckAssignment[]
+  tripHistories           TripHistory[]
+  vehicleMaintenanceRecords VehicleMaintenanceRecord[]
 }
 
 model Destination {
@@ -108,6 +110,51 @@ model Occupation {
   id   Int    @id @default(autoincrement())
   name String
   users User[]
+}
+
+model VehicleMaintenanceRecord {
+  id                        Int     @id @default(autoincrement())
+  truckId                   Int
+  driverId                  Int
+  inspectionDate            DateTime @db.Date
+  inspectionTime            String
+  municipalLicense          String
+  currentMileage            Float
+  
+  // Documentos/Anexos
+  technicalReviewStatus     String   // "Bueno", "Regular", "Malo"
+  circulationPermitStatus   String   // "Bueno", "Regular", "Malo"
+  insuranceStatus           String   // "Bueno", "Regular", "Malo"
+  
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  
+  // Relaciones
+  truck                     Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  driver                    User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  maintenanceItems          MaintenanceItem[]
+  
+  // Índice compuesto: una vez por vehículo/conductor/día
+  @@unique([truckId, driverId, inspectionDate])
+  @@index([truckId])
+  @@index([driverId])
+  @@index([inspectionDate])
+}
+
+model MaintenanceItem {
+  id          Int     @id @default(autoincrement())
+  recordId    Int
+  itemCode    String  // "estacionamiento", "frenoMano", etc.
+  itemName    String
+  category    String  // "systemLights", "systemBrakes", "systemTires", etc.
+  exists      String  // "Si", "No"
+  status      String  // "Bueno", "Regular", "Malo"
+  notes       String?
+  
+  record      VehicleMaintenanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  
+  @@index([recordId])
+  @@unique([recordId, itemCode])
 }
 
 enum UserRole {
