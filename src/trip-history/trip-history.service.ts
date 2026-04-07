@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Prisma, TripHistoryStatus, UserRole } from '@prisma/client';
+import { S3Service } from '../common/s3.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
@@ -28,7 +30,10 @@ type PaginationData = {
 
 @Injectable()
 export class TripHistoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3Service: S3Service,
+  ) {}
 
   private parsePagination(options: FindAllOptions): PaginationData {
     const page =
@@ -179,29 +184,38 @@ export class TripHistoryService {
       take: pagination.pageSize,
     });
 
-    const mappedItems = items.map((item) => {
-      const preferredDriverAssignment = item.truck.users.find(
-        (assignment) => assignment.user.role === UserRole.DRIVER,
-      );
-      const fallbackAssignment = item.truck.users[0];
-      const resolvedDriverAssignment =
-        preferredDriverAssignment ?? fallbackAssignment;
+    const mappedItems = await Promise.all(
+      items.map(async (item) => {
+        const preferredDriverAssignment = item.truck.users.find(
+          (assignment) => assignment.user.role === UserRole.DRIVER,
+        );
+        const fallbackAssignment = item.truck.users[0];
+        const resolvedDriverAssignment =
+          preferredDriverAssignment ?? fallbackAssignment;
 
-      return {
-        ...item,
-        truck: {
-          id: item.truck.id,
-          plate: item.truck.plate,
-        },
-        driver: resolvedDriverAssignment
-          ? {
-              id: resolvedDriverAssignment.user.id,
-              name: resolvedDriverAssignment.user.name,
-              email: resolvedDriverAssignment.user.email,
-            }
-          : null,
-      };
-    });
+        const signatureUrl = item.signatureKey
+          ? await this.s3Service
+              .getSignedGetUrl(item.signatureKey)
+              .catch(() => null)
+          : null;
+
+        return {
+          ...item,
+          signatureUrl,
+          truck: {
+            id: item.truck.id,
+            plate: item.truck.plate,
+          },
+          driver: resolvedDriverAssignment
+            ? {
+                id: resolvedDriverAssignment.user.id,
+                name: resolvedDriverAssignment.user.name,
+                email: resolvedDriverAssignment.user.email,
+              }
+            : null,
+        };
+      }),
+    );
 
     return {
       items: mappedItems,
@@ -474,12 +488,19 @@ export class TripHistoryService {
       );
     }
 
+    const signatureKey = this.buildSignatureKey(tripHistory.id);
+    await this.s3Service.uploadBase64Image({
+      base64DataUrl: dto.signature,
+      key: signatureKey,
+    });
+
     return this.prisma.tripHistory.update({
       where: { id: tripHistory.id },
       data: {
         endTime: dto.endTime,
         endKm: tripHistory.startKm,
         status: TripHistoryStatus.EMPLOYEE_SIGNED,
+        signatureKey,
       },
       select: {
         id: true,
@@ -501,6 +522,15 @@ export class TripHistoryService {
         },
       },
     });
+  }
+
+  private buildSignatureKey(tripHistoryId: number): string {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(now.getUTCDate()).padStart(2, '0');
+
+    return `trip-history/${year}/${month}/${day}/${tripHistoryId}-${randomUUID()}.png`;
   }
 
   async updateByAdmin(tripHistoryId: number, dto: UpdateTripHistoryDto) {

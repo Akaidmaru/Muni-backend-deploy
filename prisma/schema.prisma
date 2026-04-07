@@ -62,6 +62,7 @@ model TripHistory {
   status        TripHistoryStatus @default(DRIVER_FILLING)
   startKm       Float
   endKm         Float?
+  signatureKey  String?     @map("signature_key")
   truckId       Int
   destinationId Int
   employeeId    Int

@@ -13,6 +13,16 @@ import {
 export class VehicleMaintenanceRecordService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private getUtcDayRange(date: Date) {
+    const startOfDay = new Date(date);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    return { startOfDay, endOfDay };
+  }
+
   /**
    * Crear nuevo registro de mantenimiento.
    * Si currentMileage difiere de truck.mileage, actualiza el truck.
@@ -24,11 +34,7 @@ export class VehicleMaintenanceRecordService {
     inspectionDate: Date;
     currentMileage: number;
   }> {
-    const startOfDay = new Date(dto.inspectionDate);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(dto.inspectionDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const { startOfDay, endOfDay } = this.getUtcDayRange(dto.inspectionDate);
 
     // Verificar que el truck existe
     const truck = await this.prisma.truck.findUnique({
@@ -206,11 +212,7 @@ export class VehicleMaintenanceRecordService {
    * Obtener registro de mantenimiento por conductor y fecha
    */
   async findByDriverAndDate(driverId: number, inspectionDate: Date) {
-    const startOfDay = new Date(inspectionDate);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(inspectionDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const { startOfDay, endOfDay } = this.getUtcDayRange(inspectionDate);
 
     return await this.prisma.vehicleMaintenanceRecord.findFirst({
       where: {
@@ -249,11 +251,7 @@ export class VehicleMaintenanceRecordService {
     truckId: number,
     inspectionDate: Date,
   ) {
-    const startOfDay = new Date(inspectionDate);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(inspectionDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const { startOfDay, endOfDay } = this.getUtcDayRange(inspectionDate);
 
     return await this.prisma.vehicleMaintenanceRecord.findFirst({
       where: {

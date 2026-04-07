@@ -17,6 +17,7 @@ npm install
 
 1. Copia el archivo `.env.example` a `.env` y configura las variables necesarias.
 2. Configura la base de datos en `prisma/schema.prisma` si es necesario.
+3. Para guardar firmas de viajes en S3, configura `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_S3_BUCKET`.
 
 ## Migraciones Prisma
 
