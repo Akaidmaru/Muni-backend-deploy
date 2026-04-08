@@ -28,7 +28,6 @@ model Truck {
   plate                   String            @unique
   model                   String
   mileage                 Float            @default(0)
-  routes                  Route[]
   users                   TruckAssignment[]
   tripHistories           TripHistory[]
   vehicleMaintenanceRecords VehicleMaintenanceRecord[]
@@ -72,6 +71,7 @@ model TripHistory {
   employee      User        @relation(fields: [employeeId], references: [id])
   patient       Patient?    @relation(fields: [patientId], references: [id])
   createdAt     DateTime    @default(now())
+  points        TripHistoryPoint[]
 
   @@index([date])
   @@index([truckId])
@@ -81,14 +81,18 @@ model TripHistory {
   @@index([status])
 }
 
-model RoutePoint {
-  id        Int      @id @default(autoincrement())
-  routeId   Int
-  latitude  Float
-  longitude Float
-  order     Int
-  route     Route    @relation(fields: [routeId], references: [id])
+model TripHistoryPoint {
+  id            Int         @id @default(autoincrement())
+  tripHistoryId Int
+  latitude      Float
+  longitude     Float
+  capturedAt    DateTime    @default(now())
+  tripHistory   TripHistory @relation(fields: [tripHistoryId], references: [id], onDelete: Cascade)
+
+  @@index([tripHistoryId])
+  @@index([tripHistoryId, id])
 }
+
 model TruckAssignment {
   userId  Int
   truckId Int
@@ -96,15 +100,6 @@ model TruckAssignment {
   user    User  @relation(fields: [userId], references: [id])
 
   @@id([userId, truckId])
-}
-
-model Route {
-  id      Int    @id @default(autoincrement())
-  origin  String
-  destination String
-  truckId Int
-  truck   Truck  @relation(fields: [truckId], references: [id])
-  points  RoutePoint[]
 }
 
 model Occupation {

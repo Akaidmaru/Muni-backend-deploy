@@ -8,9 +8,11 @@ import { randomUUID } from 'crypto';
 import { Prisma, TripHistoryStatus, UserRole } from '@prisma/client';
 import { S3Service } from '../common/s3.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GoogleRoadsService } from '../route/googleRoads.service';
 import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
+import { CreateTripHistoryPointsDto } from './dto/create-trip-history-points.dto';
 import { UpdateTripHistoryDto } from './dto/update-trip-history.dto';
 
 type FindAllOptions = {
@@ -33,6 +35,7 @@ export class TripHistoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
+    private readonly googleRoadsService: GoogleRoadsService,
   ) {}
 
   private parsePagination(options: FindAllOptions): PaginationData {
@@ -359,6 +362,110 @@ export class TripHistoryService {
         },
       },
     });
+  }
+
+  async addPoints(
+    userId: number,
+    tripHistoryId: number,
+    dto: CreateTripHistoryPointsDto,
+  ) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (requester.role !== UserRole.DRIVER) {
+      throw new ForbiddenException('Solo el conductor puede enviar puntos GPS');
+    }
+
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: {
+        id: true,
+        truckId: true,
+        status: true,
+      },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    if (tripHistory.status !== TripHistoryStatus.DRIVER_FILLING) {
+      throw new BadRequestException(
+        'El viaje ya no acepta puntos GPS',
+      );
+    }
+
+    const hasAccess = await this.prisma.truckAssignment.findFirst({
+      where: {
+        userId,
+        truckId: tripHistory.truckId,
+      },
+      select: { truckId: true },
+    });
+
+    if (!hasAccess) {
+      throw new ForbiddenException(
+        'No tiene permisos para enviar puntos GPS para este viaje',
+      );
+    }
+
+    await this.prisma.tripHistoryPoint.createMany({
+      data: dto.points.map((point) => ({
+        tripHistoryId: tripHistory.id,
+        latitude: point.latitude,
+        longitude: point.longitude,
+      })),
+    });
+
+    return {
+      inserted: dto.points.length,
+    };
+  }
+
+  async getAdminRoute(tripHistoryId: number) {
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    const rawPoints = await this.prisma.tripHistoryPoint.findMany({
+      where: {
+        tripHistoryId: tripHistory.id,
+      },
+      orderBy: {
+        id: 'asc',
+      },
+      select: {
+        latitude: true,
+        longitude: true,
+        capturedAt: true,
+      },
+    });
+
+    const snappedPoints = await this.googleRoadsService.snapToRoads(
+      rawPoints.map((point) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+      })),
+    );
+
+    return {
+      tripHistoryId: tripHistory.id,
+      rawPoints,
+      snappedPoints,
+    };
   }
 
   async assignPatient(

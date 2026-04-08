@@ -15,6 +15,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
+import { CreateTripHistoryPointsDto } from './dto/create-trip-history-points.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
 import { UpdateTripHistoryDto } from './dto/update-trip-history.dto';
@@ -94,6 +95,30 @@ export class TripHistoryController {
       dto,
     );
     return tripHistory;
+  }
+
+  @Post(':id/points')
+  async addPoints(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateTripHistoryPointsDto,
+  ): Promise<unknown> {
+    const result: unknown = await this.tripHistoryService.addPoints(
+      req.user.id,
+      id,
+      dto,
+    );
+    return result;
+  }
+
+  @Get(':id/map-route')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async getAdminRoute(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<unknown> {
+    const route: unknown = await this.tripHistoryService.getAdminRoute(id);
+    return route;
   }
 
   @Patch(':id/finish')
