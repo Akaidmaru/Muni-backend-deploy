@@ -196,15 +196,21 @@ export class TripHistoryService {
         const resolvedDriverAssignment =
           preferredDriverAssignment ?? fallbackAssignment;
 
-        const signatureUrl = item.signatureKey
-          ? await this.s3Service
-              .getSignedGetUrl(item.signatureKey)
-              .catch(() => null)
-          : null;
+        const [signatureUrl, signatureDataUrl] = item.signatureKey
+          ? await Promise.all([
+              this.s3Service
+                .getSignedGetUrl(item.signatureKey)
+                .catch(() => null),
+              this.s3Service
+                .getObjectDataUrl(item.signatureKey)
+                .catch(() => null),
+            ])
+          : [null, null];
 
         return {
           ...item,
           signatureUrl,
+          signatureDataUrl,
           truck: {
             id: item.truck.id,
             plate: item.truck.plate,
@@ -396,9 +402,7 @@ export class TripHistoryService {
     }
 
     if (tripHistory.status !== TripHistoryStatus.DRIVER_FILLING) {
-      throw new BadRequestException(
-        'El viaje ya no acepta puntos GPS',
-      );
+      throw new BadRequestException('El viaje ya no acepta puntos GPS');
     }
 
     const hasAccess = await this.prisma.truckAssignment.findFirst({

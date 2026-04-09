@@ -85,6 +85,28 @@ export class S3Service {
     });
   }
 
+  async getObjectDataUrl(key: string): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    const response = await this.client.send(command);
+    const body = response.Body;
+
+    if (!body || typeof body.transformToByteArray !== 'function') {
+      throw new InternalServerErrorException(
+        'No se pudo leer la firma almacenada.',
+      );
+    }
+
+    const bytes = await body.transformToByteArray();
+    const mimeType = response.ContentType || 'image/png';
+    const base64Payload = Buffer.from(bytes).toString('base64');
+
+    return `data:${mimeType};base64,${base64Payload}`;
+  }
+
   private parseDataUrl(dataUrl: string): { mimeType: string; buffer: Buffer } {
     const matches = dataUrl.match(
       /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/,
