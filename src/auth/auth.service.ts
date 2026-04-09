@@ -3,12 +3,16 @@ import {
   ConflictException,
   UnauthorizedException,
   NotFoundException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { CreateUserDto } from './dto/create-user-dto';
 import { LoginDto } from './dto/login-dto';
+import { UpdateVerificationEmailDto } from './dto/update-verification-email.dto';
 import * as bcrypt from 'bcrypt';
 import { MailService } from '../common/mail.service';
 
@@ -25,6 +29,11 @@ interface OccupationIdOnly {
   id: number;
 }
 
+interface OccupationWithName {
+  id: number;
+  name: string;
+}
+
 interface CurrentUserResponse {
   id: number;
   email: string;
@@ -39,12 +48,16 @@ interface OccupationDelegate {
   }): Promise<OccupationListItem[]>;
   findUnique(args: {
     where: { id: number };
-    select: { id: true };
-  }): Promise<OccupationIdOnly | null>;
+    select: { id: true; name: true };
+  }): Promise<OccupationWithName | null>;
 }
 
 @Injectable()
 export class AuthService {
+  private readonly verificationRateLimitSeconds = Number(
+    process.env.VERIFICATION_RATE_LIMIT_SECONDS ?? 60,
+  );
+
   private getOccupationDelegate(): OccupationDelegate {
     return this.prisma.occupation as unknown as OccupationDelegate;
   }
@@ -65,12 +78,27 @@ export class AuthService {
   }
 
   async register(data: CreateUserDto) {
+    const normalizedEmail = data.email.trim().toLowerCase();
+    const normalizedPhone = data.phone?.trim() || undefined;
+    let role: UserRole = UserRole.EMPLOYEE;
+
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
       throw new ConflictException('El email ya está registrado');
+    }
+
+    if (normalizedPhone) {
+      const existingPhoneUser = await this.prisma.user.findUnique({
+        where: { phone: normalizedPhone },
+        select: { id: true },
+      });
+
+      if (existingPhoneUser) {
+        throw new ConflictException('El número de teléfono ya está registrado');
+      }
     }
 
     if (data.occupationId) {
@@ -78,33 +106,71 @@ export class AuthService {
       const occupationId = Number(data.occupationId);
       const occupation = await occupationDelegate.findUnique({
         where: { id: occupationId },
-        select: { id: true },
+        select: { id: true, name: true },
       });
 
       if (!occupation) {
         throw new NotFoundException('Ocupación no encontrada');
       }
+
+      role =
+        occupation.name.trim().toLowerCase() === 'conductor'
+          ? UserRole.DRIVER
+          : UserRole.EMPLOYEE;
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    const user = await this.prisma.user.create({
-      data: {
-        ...data,
-        password: hashedPassword,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        role: true,
-        occupationId: true,
-      },
-    });
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          ...data,
+          email: normalizedEmail,
+          phone: normalizedPhone,
+          role,
+          password: hashedPassword,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+          occupationId: true,
+        },
+      });
 
-    // No devolver token, solo usuario
-    return { user };
+      // No devolver token, solo usuario
+      return { user };
+    } catch (error: unknown) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const rawTarget = error.meta?.target;
+        const target = Array.isArray(rawTarget)
+          ? rawTarget.join(',')
+          : typeof rawTarget === 'string'
+            ? rawTarget
+            : '';
+
+        if (target.includes('phone')) {
+          throw new ConflictException(
+            'El número de teléfono ya está registrado',
+          );
+        }
+
+        if (target.includes('email')) {
+          throw new ConflictException('El email ya está registrado');
+        }
+
+        throw new ConflictException(
+          'Ya existe un usuario con los datos ingresados',
+        );
+      }
+
+      throw error;
+    }
   }
 
   async sendVerificationCode({ email }: { email: string }) {
@@ -125,6 +191,8 @@ export class AuthService {
     if (user.isVerified) {
       throw new ConflictException('El usuario ya se encuentra verificado');
     }
+
+    await this.enforceVerificationRateLimit(email, 'send-code');
 
     const key = `verify:email:${email}`;
     await this.mailService.sendVerificationCode(email, code);
@@ -175,10 +243,89 @@ export class AuthService {
     return user;
   }
 
+  async updateVerificationEmail({
+    oldEmail,
+    newEmail,
+  }: UpdateVerificationEmailDto) {
+    if (oldEmail === newEmail) {
+      throw new ConflictException(
+        'El nuevo email debe ser diferente al actual',
+      );
+    }
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { email: oldEmail },
+      select: { id: true, isVerified: true },
+    });
+
+    if (!currentUser) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (currentUser.isVerified) {
+      throw new ConflictException(
+        'El usuario ya se encuentra verificado y no puede cambiar este correo por este flujo',
+      );
+    }
+
+    const newEmailOwner = await this.prisma.user.findUnique({
+      where: { email: newEmail },
+      select: { id: true },
+    });
+
+    if (newEmailOwner) {
+      throw new ConflictException('El nuevo email ya está registrado');
+    }
+
+    await this.enforceVerificationRateLimit(oldEmail, 'update-email');
+
+    await this.prisma.user.update({
+      where: { id: currentUser.id },
+      data: { email: newEmail, isVerified: false },
+    });
+
+    const oldKey = `verify:email:${oldEmail}`;
+    await this.redisService.del(oldKey);
+
+    await this.sendVerificationCode({ email: newEmail });
+
+    return {
+      message: 'Correo de verificación actualizado y código reenviado',
+      email: newEmail,
+    };
+  }
+
+  private async enforceVerificationRateLimit(
+    email: string,
+    action: 'send-code' | 'update-email',
+  ) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const key = `rate-limit:verification:${action}:${normalizedEmail}`;
+    const isLimited = await this.redisService.exists(key);
+
+    if (isLimited) {
+      throw new HttpException(
+        `Demasiadas solicitudes. Intente nuevamente en ${this.verificationRateLimitSeconds} segundos.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    await this.redisService.set(key, '1', this.verificationRateLimitSeconds);
+  }
+
   async login({ email, password }: LoginDto) {
+    const normalizedEmail = email.trim().toLowerCase();
+
     const user = await this.prisma.user.findUnique({
-      where: { email },
-      omit: { password: false },
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isVerified: true,
+        password: true,
+      },
     });
 
     if (!user) {

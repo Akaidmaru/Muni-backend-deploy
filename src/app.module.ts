@@ -8,6 +8,7 @@ import { RouteModule } from './route/route.module';
 import { OccupationModule } from './occupation/occupation.module';
 import { DestinationModule } from './destination/destination.module';
 import { TripHistoryModule } from './trip-history/trip-history.module';
+import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/vehicle-maintenance-record.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TripHistoryModule } from './trip-history/trip-history.module';
     OccupationModule,
     DestinationModule,
     TripHistoryModule,
+    VehicleMaintenanceRecordModule,
   ],
   controllers: [],
   providers: [],

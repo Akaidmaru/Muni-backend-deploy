@@ -4,11 +4,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Prisma, TripHistoryStatus, UserRole } from '@prisma/client';
+import { S3Service } from '../common/s3.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GoogleRoadsService } from '../route/googleRoads.service';
 import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
+import { CreateTripHistoryPointsDto } from './dto/create-trip-history-points.dto';
+import { UpdateTripHistoryDto } from './dto/update-trip-history.dto';
 
 type FindAllOptions = {
   page: number;
@@ -27,7 +32,11 @@ type PaginationData = {
 
 @Injectable()
 export class TripHistoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3Service: S3Service,
+    private readonly googleRoadsService: GoogleRoadsService,
+  ) {}
 
   private parsePagination(options: FindAllOptions): PaginationData {
     const page =
@@ -178,26 +187,44 @@ export class TripHistoryService {
       take: pagination.pageSize,
     });
 
-    const mappedItems = items.map((item) => {
-      const driverAssignment = item.truck.users.find(
-        (assignment) => assignment.user.role === UserRole.DRIVER,
-      );
+    const mappedItems = await Promise.all(
+      items.map(async (item) => {
+        const preferredDriverAssignment = item.truck.users.find(
+          (assignment) => assignment.user.role === UserRole.DRIVER,
+        );
+        const fallbackAssignment = item.truck.users[0];
+        const resolvedDriverAssignment =
+          preferredDriverAssignment ?? fallbackAssignment;
 
-      return {
-        ...item,
-        truck: {
-          id: item.truck.id,
-          plate: item.truck.plate,
-        },
-        driver: driverAssignment
-          ? {
-              id: driverAssignment.user.id,
-              name: driverAssignment.user.name,
-              email: driverAssignment.user.email,
-            }
-          : null,
-      };
-    });
+        const [signatureUrl, signatureDataUrl] = item.signatureKey
+          ? await Promise.all([
+              this.s3Service
+                .getSignedGetUrl(item.signatureKey)
+                .catch(() => null),
+              this.s3Service
+                .getObjectDataUrl(item.signatureKey)
+                .catch(() => null),
+            ])
+          : [null, null];
+
+        return {
+          ...item,
+          signatureUrl,
+          signatureDataUrl,
+          truck: {
+            id: item.truck.id,
+            plate: item.truck.plate,
+          },
+          driver: resolvedDriverAssignment
+            ? {
+                id: resolvedDriverAssignment.user.id,
+                name: resolvedDriverAssignment.user.name,
+                email: resolvedDriverAssignment.user.email,
+              }
+            : null,
+        };
+      }),
+    );
 
     return {
       items: mappedItems,
@@ -343,6 +370,108 @@ export class TripHistoryService {
     });
   }
 
+  async addPoints(
+    userId: number,
+    tripHistoryId: number,
+    dto: CreateTripHistoryPointsDto,
+  ) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (requester.role !== UserRole.DRIVER) {
+      throw new ForbiddenException('Solo el conductor puede enviar puntos GPS');
+    }
+
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: {
+        id: true,
+        truckId: true,
+        status: true,
+      },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    if (tripHistory.status !== TripHistoryStatus.DRIVER_FILLING) {
+      throw new BadRequestException('El viaje ya no acepta puntos GPS');
+    }
+
+    const hasAccess = await this.prisma.truckAssignment.findFirst({
+      where: {
+        userId,
+        truckId: tripHistory.truckId,
+      },
+      select: { truckId: true },
+    });
+
+    if (!hasAccess) {
+      throw new ForbiddenException(
+        'No tiene permisos para enviar puntos GPS para este viaje',
+      );
+    }
+
+    await this.prisma.tripHistoryPoint.createMany({
+      data: dto.points.map((point) => ({
+        tripHistoryId: tripHistory.id,
+        latitude: point.latitude,
+        longitude: point.longitude,
+      })),
+    });
+
+    return {
+      inserted: dto.points.length,
+    };
+  }
+
+  async getAdminRoute(tripHistoryId: number) {
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    const rawPoints = await this.prisma.tripHistoryPoint.findMany({
+      where: {
+        tripHistoryId: tripHistory.id,
+      },
+      orderBy: {
+        id: 'asc',
+      },
+      select: {
+        latitude: true,
+        longitude: true,
+        capturedAt: true,
+      },
+    });
+
+    const snappedPoints = await this.googleRoadsService.snapToRoads(
+      rawPoints.map((point) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+      })),
+    );
+
+    return {
+      tripHistoryId: tripHistory.id,
+      rawPoints,
+      snappedPoints,
+    };
+  }
+
   async assignPatient(
     userId: number,
     tripHistoryId: number,
@@ -378,7 +507,10 @@ export class TripHistoryService {
       throw new ForbiddenException('No tiene permisos para asignar pacientes');
     }
 
-    if (requester.role === UserRole.EMPLOYEE && tripHistory.employeeId !== userId) {
+    if (
+      requester.role === UserRole.EMPLOYEE &&
+      tripHistory.employeeId !== userId
+    ) {
       throw new ForbiddenException(
         'Solo el funcionario asignado puede registrar el paciente de este viaje',
       );
@@ -467,12 +599,19 @@ export class TripHistoryService {
       );
     }
 
+    const signatureKey = this.buildSignatureKey(tripHistory.id);
+    await this.s3Service.uploadBase64Image({
+      base64DataUrl: dto.signature,
+      key: signatureKey,
+    });
+
     return this.prisma.tripHistory.update({
       where: { id: tripHistory.id },
       data: {
         endTime: dto.endTime,
         endKm: tripHistory.startKm,
         status: TripHistoryStatus.EMPLOYEE_SIGNED,
+        signatureKey,
       },
       select: {
         id: true,
@@ -494,5 +633,141 @@ export class TripHistoryService {
         },
       },
     });
+  }
+
+  private buildSignatureKey(tripHistoryId: number): string {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(now.getUTCDate()).padStart(2, '0');
+
+    return `trip-history/${year}/${month}/${day}/${tripHistoryId}-${randomUUID()}.png`;
+  }
+
+  async updateByAdmin(tripHistoryId: number, dto: UpdateTripHistoryDto) {
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: {
+        id: true,
+        startKm: true,
+        endKm: true,
+        truckId: true,
+        destinationId: true,
+      },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    const nextStartKm = dto.startKm ?? tripHistory.startKm;
+    const nextEndKm = dto.endKm ?? tripHistory.endKm;
+
+    if (nextEndKm !== null && nextEndKm < nextStartKm) {
+      throw new BadRequestException(
+        'El kilometraje final no puede ser menor al kilometraje inicial',
+      );
+    }
+
+    if (dto.truckId !== undefined) {
+      const truck = await this.prisma.truck.findUnique({
+        where: { id: dto.truckId },
+        select: { id: true },
+      });
+
+      if (!truck) {
+        throw new NotFoundException('Camion no encontrado');
+      }
+    }
+
+    if (dto.destinationId !== undefined) {
+      const destination = await this.prisma.destination.findUnique({
+        where: { id: dto.destinationId },
+        select: { id: true },
+      });
+
+      if (!destination) {
+        throw new NotFoundException('Destino no encontrado');
+      }
+    }
+
+    const data: Prisma.TripHistoryUpdateInput = {
+      ...(dto.date ? { date: new Date(dto.date) } : {}),
+      ...(dto.startTime !== undefined ? { startTime: dto.startTime } : {}),
+      ...(dto.endTime !== undefined ? { endTime: dto.endTime } : {}),
+      ...(dto.status !== undefined ? { status: dto.status } : {}),
+      ...(dto.startKm !== undefined ? { startKm: dto.startKm } : {}),
+      ...(dto.endKm !== undefined ? { endKm: dto.endKm } : {}),
+      ...(dto.truckId !== undefined ? { truckId: dto.truckId } : {}),
+      ...(dto.destinationId !== undefined
+        ? { destinationId: dto.destinationId }
+        : {}),
+    };
+
+    const updatedTrip = await this.prisma.tripHistory.update({
+      where: { id: tripHistory.id },
+      data,
+      include: {
+        truck: {
+          select: {
+            id: true,
+            plate: true,
+            users: {
+              select: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        destination: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        patient: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    const preferredDriverAssignment = updatedTrip.truck.users.find(
+      (assignment) => assignment.user.role === UserRole.DRIVER,
+    );
+    const fallbackAssignment = updatedTrip.truck.users[0];
+    const resolvedDriverAssignment =
+      preferredDriverAssignment ?? fallbackAssignment;
+
+    return {
+      ...updatedTrip,
+      truck: {
+        id: updatedTrip.truck.id,
+        plate: updatedTrip.truck.plate,
+      },
+      driver: resolvedDriverAssignment
+        ? {
+            id: resolvedDriverAssignment.user.id,
+            name: resolvedDriverAssignment.user.name,
+            email: resolvedDriverAssignment.user.email,
+          }
+        : null,
+    };
   }
 }
