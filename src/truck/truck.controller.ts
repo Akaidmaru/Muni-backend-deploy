@@ -7,6 +7,8 @@ import {
   Param,
   Body,
   UseGuards,
+  Req,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { TruckService } from './truck.service';
@@ -16,6 +18,12 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
 import { AssignUserDto } from './dto/assign-user.dto';
+import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
+import type { Request } from 'express';
+
+interface AuthenticatedRequest extends Request {
+  user: { id: number };
+}
 
 @ApiBearerAuth()
 @Controller('trucks')
@@ -59,6 +67,19 @@ export class TruckController {
     return this.truckService.findAll();
   }
 
+  @Get('out-of-service-alerts')
+  @ApiOperation({
+    summary:
+      'Listar vehículos fuera de servicio por avería (último evento por camión).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Alertas de fuera de servicio por avería',
+  })
+  getOutOfServiceAlerts() {
+    return this.truckService.getOutOfServiceAlerts();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener camión por ID (ADMIN)' })
   @ApiResponse({
@@ -71,8 +92,8 @@ export class TruckController {
       },
     },
   })
-  findOne(@Param('id') id: string) {
-    return this.truckService.findOne(Number(id));
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.truckService.findOne(id);
   }
 
   @Patch(':id')
@@ -87,8 +108,8 @@ export class TruckController {
       },
     },
   })
-  update(@Param('id') id: string, @Body() dto: UpdateTruckDto) {
-    return this.truckService.update(Number(id), dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTruckDto) {
+    return this.truckService.update(id, dto);
   }
 
   @Delete(':id')
@@ -103,8 +124,8 @@ export class TruckController {
       },
     },
   })
-  remove(@Param('id') id: string) {
-    return this.truckService.remove(Number(id));
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.truckService.remove(id);
   }
 
   @Post('assign')
@@ -138,7 +159,25 @@ export class TruckController {
       },
     },
   })
-  getUsersOfTruck(@Param('id') id: string) {
-    return this.truckService.getUsersOfTruck(Number(id));
+  getUsersOfTruck(@Param('id', ParseIntPipe) id: number) {
+    return this.truckService.getUsersOfTruck(id);
+  }
+
+  @Post('plate-change')
+  @UseGuards(JwtAuthGuard)
+  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Registrar cambio de patente. Si el motivo es AVERIA, el camión queda INACTIVE.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Cambio de patente registrado correctamente',
+  })
+  registerPlateChange(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: RegisterPlateChangeDto,
+  ) {
+    return this.truckService.registerPlateChange(Number(req.user.id), dto);
   }
 }

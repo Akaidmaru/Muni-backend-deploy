@@ -12,7 +12,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import * as bcrypt from 'bcrypt';
-import { Prisma } from '@prisma/client';
+import { Prisma, TruckStatus } from '@prisma/client';
 import { UserRole } from '@prisma/client';
 
 export interface UserListItem {
@@ -124,7 +124,12 @@ export class UserService {
 
   async getTrucksOfUser(userId: number) {
     const assignments = await this.prisma.truckAssignment.findMany({
-      where: { userId },
+      where: {
+        userId,
+        truck: {
+          status: TruckStatus.ACTIVE,
+        },
+      },
       include: { truck: true },
     });
     return assignments.map((a) => a.truck);
