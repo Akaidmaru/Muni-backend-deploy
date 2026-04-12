@@ -20,6 +20,7 @@ model User {
   trucks                  TruckAssignment[]
   tripHistories           TripHistory[]
   vehicleMaintenanceRecords VehicleMaintenanceRecord[]
+  problemReports          ProblemReport[]
   isVerified              Boolean          @default(false)
 }
 
@@ -153,6 +154,22 @@ model MaintenanceItem {
   @@unique([recordId, itemCode])
 }
 
+model ProblemReport {
+  id            Int                @id @default(autoincrement())
+  title         String
+  description   String
+  screenshotKey String?            @map("screenshot_key")
+  status        ProblemReportStatus @default(OPEN)
+  reporterId    Int
+  reporter      User               @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([reporterId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 enum UserRole {
   EMPLOYEE
   DRIVER
@@ -163,4 +180,10 @@ enum TripHistoryStatus {
   DRIVER_FILLING
   EMPLOYEE_SIGNED
   COMPLETED
+}
+
+enum ProblemReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
 }

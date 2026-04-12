@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'crypto';
 import { Prisma, TripHistoryStatus, UserRole } from '@prisma/client';
 import { S3Service } from '../common/s3.service';
+import { DestinationService } from '../destination/destination.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleRoadsService } from '../route/googleRoads.service';
 import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
@@ -36,6 +37,7 @@ export class TripHistoryService {
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
     private readonly googleRoadsService: GoogleRoadsService,
+    private readonly destinationService: DestinationService,
   ) {}
 
   private parsePagination(options: FindAllOptions): PaginationData {
@@ -305,10 +307,19 @@ export class TripHistoryService {
       throw new NotFoundException('Camión no encontrado');
     }
 
-    const destination = await this.prisma.destination.findUnique({
-      where: { id: dto.destinationId },
-      select: { id: true, name: true },
-    });
+    const customDestinationName = dto.customDestination?.trim();
+    let destination: { id: number; name: string } | null = null;
+
+    if (customDestinationName) {
+      destination = await this.destinationService.findOrCreateActiveByName(
+        customDestinationName,
+      );
+    } else if (dto.destinationId) {
+      destination = await this.prisma.destination.findUnique({
+        where: { id: dto.destinationId },
+        select: { id: true, name: true },
+      });
+    }
 
     if (!destination) {
       throw new NotFoundException('Destino no encontrado');
@@ -468,7 +479,6 @@ export class TripHistoryService {
 
     return {
       tripHistoryId: tripHistory.id,
-      rawPoints,
       snappedPoints,
     };
   }
@@ -716,9 +726,10 @@ export class TripHistoryService {
       sinLatitude * sinLatitude +
       Math.cos(startLat) * Math.cos(endLat) * sinLongitude * sinLongitude;
 
-    return 2 * earthRadiusMeters * Math.atan2(
-      Math.sqrt(haversineValue),
-      Math.sqrt(1 - haversineValue),
+    return (
+      2 *
+      earthRadiusMeters *
+      Math.atan2(Math.sqrt(haversineValue), Math.sqrt(1 - haversineValue))
     );
   }
 

@@ -328,9 +328,37 @@ export class VehicleMaintenanceRecordService {
       );
     }
 
+    // Separar maintenanceItems del DTO
+    const { maintenanceItems, ...recordData } = dto;
+
+    // Filtrar propiedades undefined y convertir currentMileage a número
+    const cleanData = Object.fromEntries(
+      Object.entries(recordData)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => {
+          if (key === 'currentMileage' && value !== undefined) {
+            return [key, Number(value)];
+          }
+          return [key, value];
+        }),
+    );
+
+    const updateData: any = cleanData;
+
+    // Si maintenanceItems está presente, actualizar items existentes
+    if (maintenanceItems !== undefined && Array.isArray(maintenanceItems)) {
+      // Eliminar items existentes y crear los nuevos
+      await this.prisma.maintenanceItem.deleteMany({
+        where: { recordId: id },
+      });
+      updateData.maintenanceItems = {
+        create: maintenanceItems,
+      };
+    }
+
     const updated = await this.prisma.vehicleMaintenanceRecord.update({
       where: { id },
-      data: dto,
+      data: updateData,
       include: {
         truck: {
           select: {
@@ -351,14 +379,14 @@ export class VehicleMaintenanceRecordService {
     });
 
     // Si se actualizó currentMileage y difiere del truck actual, actualizar truck
-    if (dto.currentMileage !== undefined) {
+    if (cleanData.currentMileage !== undefined) {
       const truck = await this.prisma.truck.findUnique({
         where: { id: existing.truckId },
       });
-      if (truck && dto.currentMileage !== truck.mileage) {
+      if (truck && Number(cleanData.currentMileage) !== truck.mileage) {
         await this.prisma.truck.update({
           where: { id: existing.truckId },
-          data: { mileage: dto.currentMileage },
+          data: { mileage: Number(cleanData.currentMileage) },
         });
       }
     }
