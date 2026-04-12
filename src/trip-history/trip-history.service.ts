@@ -424,6 +424,7 @@ export class TripHistoryService {
         tripHistoryId: tripHistory.id,
         latitude: point.latitude,
         longitude: point.longitude,
+        ...(point.capturedAt ? { capturedAt: new Date(point.capturedAt) } : {}),
       })),
     });
 
@@ -530,9 +531,9 @@ export class TripHistoryService {
       );
     }
 
-    if (tripHistory.status !== TripHistoryStatus.EMPLOYEE_SIGNED) {
+    if (tripHistory.status !== TripHistoryStatus.COMPLETED) {
       throw new BadRequestException(
-        'Solo se puede completar un viaje en estado EMPLOYEE_SIGNED',
+        'Solo se puede completar un viaje en estado COMPLETED',
       );
     }
 
@@ -599,39 +600,78 @@ export class TripHistoryService {
       );
     }
 
+    const tripPoints = await this.prisma.tripHistoryPoint.findMany({
+      where: {
+        tripHistoryId: tripHistory.id,
+      },
+      orderBy: [
+        {
+          capturedAt: 'asc',
+        },
+        {
+          id: 'asc',
+        },
+      ],
+      select: {
+        latitude: true,
+        longitude: true,
+      },
+    });
+
+    let routePoints = tripPoints;
+
+    try {
+      routePoints = await this.googleRoadsService.snapToRoads(tripPoints);
+    } catch {
+      routePoints = tripPoints;
+    }
+
+    const traveledKm = this.calculateRouteDistanceKm(routePoints);
+    const endKm = Number((tripHistory.startKm + traveledKm).toFixed(3));
     const signatureKey = this.buildSignatureKey(tripHistory.id);
     await this.s3Service.uploadBase64Image({
       base64DataUrl: dto.signature,
       key: signatureKey,
     });
 
-    return this.prisma.tripHistory.update({
-      where: { id: tripHistory.id },
-      data: {
-        endTime: dto.endTime,
-        endKm: tripHistory.startKm,
-        status: TripHistoryStatus.EMPLOYEE_SIGNED,
-        signatureKey,
-      },
-      select: {
-        id: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        startKm: true,
-        endKm: true,
-        status: true,
-        truckId: true,
-        destinationId: true,
-        employeeId: true,
-        patientId: true,
-        patient: {
-          select: {
-            id: true,
-            name: true,
+    return this.prisma.$transaction(async (tx) => {
+      const updatedTrip = await tx.tripHistory.update({
+        where: { id: tripHistory.id },
+        data: {
+          endTime: dto.endTime,
+          endKm,
+          status: TripHistoryStatus.COMPLETED,
+          signatureKey,
+        },
+        select: {
+          id: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          startKm: true,
+          endKm: true,
+          status: true,
+          truckId: true,
+          destinationId: true,
+          employeeId: true,
+          patientId: true,
+          patient: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
         },
-      },
+      });
+
+      await tx.truck.update({
+        where: { id: tripHistory.truckId },
+        data: {
+          mileage: endKm,
+        },
+      });
+
+      return updatedTrip;
     });
   }
 
@@ -642,6 +682,48 @@ export class TripHistoryService {
     const day = String(now.getUTCDate()).padStart(2, '0');
 
     return `trip-history/${year}/${month}/${day}/${tripHistoryId}-${randomUUID()}.png`;
+  }
+
+  private calculateRouteDistanceKm(
+    points: Array<{ latitude: number; longitude: number }>,
+  ): number {
+    if (points.length < 2) {
+      return 0;
+    }
+
+    let totalMeters = 0;
+
+    for (let index = 1; index < points.length; index += 1) {
+      totalMeters += this.haversineMeters(points[index - 1], points[index]);
+    }
+
+    return totalMeters / 1000;
+  }
+
+  private haversineMeters(
+    a: { latitude: number; longitude: number },
+    b: { latitude: number; longitude: number },
+  ): number {
+    const earthRadiusMeters = 6371000;
+    const latitudeDelta = this.toRadians(b.latitude - a.latitude);
+    const longitudeDelta = this.toRadians(b.longitude - a.longitude);
+    const startLat = this.toRadians(a.latitude);
+    const endLat = this.toRadians(b.latitude);
+
+    const sinLatitude = Math.sin(latitudeDelta / 2);
+    const sinLongitude = Math.sin(longitudeDelta / 2);
+    const haversineValue =
+      sinLatitude * sinLatitude +
+      Math.cos(startLat) * Math.cos(endLat) * sinLongitude * sinLongitude;
+
+    return 2 * earthRadiusMeters * Math.atan2(
+      Math.sqrt(haversineValue),
+      Math.sqrt(1 - haversineValue),
+    );
+  }
+
+  private toRadians(degrees: number): number {
+    return (degrees * Math.PI) / 180;
   }
 
   async updateByAdmin(tripHistoryId: number, dto: UpdateTripHistoryDto) {

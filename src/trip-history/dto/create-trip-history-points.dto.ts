@@ -2,7 +2,9 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsISO8601,
   IsNumber,
+  IsOptional,
   ValidateNested,
 } from 'class-validator';
 
@@ -12,6 +14,10 @@ export class CreateTripHistoryPointDto {
 
   @IsNumber()
   longitude!: number;
+
+  @IsOptional()
+  @IsISO8601()
+  capturedAt?: string;
 }
 
 export class CreateTripHistoryPointsDto {
