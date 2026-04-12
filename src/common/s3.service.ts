@@ -16,6 +16,12 @@ export type UploadBase64ImageParams = {
   key: string;
 };
 
+export type UploadImageBufferParams = {
+  buffer: Buffer;
+  contentType: string;
+  key: string;
+};
+
 @Injectable()
 export class S3Service {
   private readonly logger = new Logger(S3Service.name);
@@ -74,6 +80,33 @@ export class S3Service {
     return params.key;
   }
 
+  async uploadImageBuffer(params: UploadImageBufferParams): Promise<string> {
+    const mimeType = this.validateImageMimeType(params.contentType);
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: params.key,
+      Body: params.buffer,
+      ContentType: mimeType,
+    });
+
+    try {
+      await this.client.send(command);
+    } catch (error) {
+      const err = error as { name?: string; message?: string };
+
+      this.logger.error(
+        `Error subiendo archivo a S3. bucket=${this.bucketName} key=${params.key} error=${err?.name || 'UnknownError'} message=${err?.message || 'sin detalle'}`,
+      );
+
+      throw new InternalServerErrorException(
+        'No se pudo subir el archivo al almacenamiento. Verifique credenciales/permisos de AWS e intente nuevamente.',
+      );
+    }
+
+    return params.key;
+  }
+
   async getSignedGetUrl(key: string): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucketName,
@@ -125,5 +158,23 @@ export class S3Service {
       mimeType,
       buffer: Buffer.from(base64Payload, 'base64'),
     };
+  }
+
+  private validateImageMimeType(contentType: string): string {
+    const normalized = (contentType || '').toLowerCase().trim();
+    const allowedMimeTypes = new Set([
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+    ]);
+
+    if (!allowedMimeTypes.has(normalized)) {
+      throw new BadRequestException(
+        'Solo se permiten imagenes PNG, JPEG o WEBP.',
+      );
+    }
+
+    return normalized;
   }
 }

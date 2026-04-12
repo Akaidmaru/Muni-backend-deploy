@@ -1,6 +1,6 @@
-import { OmitType, PartialType } from '@nestjs/mapped-types';
+import { PartialType } from '@nestjs/mapped-types';
 import { CreateVehicleMaintenanceRecordDto } from './create-vehicle-maintenance-record.dto';
 
 export class UpdateVehicleMaintenanceRecordDto extends PartialType(
-  OmitType(CreateVehicleMaintenanceRecordDto, ['maintenanceItems']),
+  CreateVehicleMaintenanceRecordDto,
 ) {}

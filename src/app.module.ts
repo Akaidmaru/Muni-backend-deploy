@@ -7,6 +7,7 @@ import { TruckModule } from './truck/truck.module';
 import { RouteModule } from './route/route.module';
 import { OccupationModule } from './occupation/occupation.module';
 import { DestinationModule } from './destination/destination.module';
+import { ReportModule } from './report/report.module';
 import { TripHistoryModule } from './trip-history/trip-history.module';
 import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/vehicle-maintenance-record.module';
 
@@ -20,6 +21,7 @@ import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/veh
     RouteModule,
     OccupationModule,
     DestinationModule,
+    ReportModule,
     TripHistoryModule,
     VehicleMaintenanceRecordModule,
   ],

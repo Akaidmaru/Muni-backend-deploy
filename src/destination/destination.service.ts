@@ -80,6 +80,50 @@ export class DestinationService {
     return destination as DestinationResponse;
   }
 
+  async findOrCreateActiveByName(name: string): Promise<DestinationResponse> {
+    const normalizedName = name.trim();
+
+    if (normalizedName.length < 2 || normalizedName.length > 120) {
+      throw new BadRequestException(
+        'El nombre del destino debe tener entre 2 y 120 caracteres',
+      );
+    }
+
+    const existing = await this.prisma.destination.findFirst({
+      where: {
+        name: {
+          equals: normalizedName,
+          mode: 'insensitive',
+        },
+      },
+      select: this.destinationSelect,
+    });
+
+    if (existing) {
+      if (!existing.active) {
+        const updatedDestination = await this.prisma.destination.update({
+          where: { id: existing.id },
+          data: { active: true },
+          select: this.destinationSelect,
+        });
+
+        return updatedDestination as DestinationResponse;
+      }
+
+      return existing as DestinationResponse;
+    }
+
+    const destination = await this.prisma.destination.create({
+      data: {
+        name: normalizedName,
+        active: true,
+      },
+      select: this.destinationSelect,
+    });
+
+    return destination as DestinationResponse;
+  }
+
   async findAll(): Promise<DestinationResponse[]> {
     const destinations = await this.prisma.destination.findMany({
       orderBy: { name: 'asc' },

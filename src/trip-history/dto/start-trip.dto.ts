@@ -1,12 +1,25 @@
-import { IsInt, IsString, Matches, Min } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class StartTripDto {
   @IsString()
   plate!: string;
 
+  @IsOptional()
   @IsInt()
   @Min(1)
-  destinationId!: number;
+  destinationId?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customDestination?: string;
 
   @IsInt()
   @Min(1)
