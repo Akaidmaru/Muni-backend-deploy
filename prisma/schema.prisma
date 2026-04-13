@@ -21,6 +21,7 @@ model User {
   tripHistories           TripHistory[]
   vehicleMaintenanceRecords VehicleMaintenanceRecord[]
   problemReports          ProblemReport[]
+  plateChangeLogs         TruckPlateChangeLog[]
   isVerified              Boolean          @default(false)
 }
 
@@ -29,9 +30,11 @@ model Truck {
   plate                   String            @unique
   model                   String
   mileage                 Float            @default(0)
+  status                  TruckStatus      @default(ACTIVE)
   users                   TruckAssignment[]
   tripHistories           TripHistory[]
   vehicleMaintenanceRecords VehicleMaintenanceRecord[]
+  plateChangeLogs         TruckPlateChangeLog[]
 }
 
 model Destination {
@@ -101,6 +104,24 @@ model TruckAssignment {
   user    User  @relation(fields: [userId], references: [id])
 
   @@id([userId, truckId])
+}
+
+model TruckPlateChangeLog {
+  id              Int                   @id @default(autoincrement())
+  truckId         Int
+  changedByUserId Int
+  reason          PlateChangeReason
+  observations    String
+  previousStatus  TruckStatus
+  newStatus       TruckStatus
+  createdAt       DateTime              @default(now())
+
+  truck           Truck                 @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  changedBy       User                  @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([truckId])
+  @@index([changedByUserId])
+  @@index([createdAt])
 }
 
 model Occupation {
@@ -174,6 +195,16 @@ enum UserRole {
   EMPLOYEE
   DRIVER
   ADMIN
+}
+
+enum TruckStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PlateChangeReason {
+  LOGISTICA
+  AVERIA
 }
 
 enum TripHistoryStatus {

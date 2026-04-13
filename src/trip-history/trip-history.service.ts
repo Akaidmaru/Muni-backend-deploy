@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { Prisma, TripHistoryStatus, UserRole } from '@prisma/client';
+import { Prisma, TripHistoryStatus, TruckStatus, UserRole } from '@prisma/client';
 import { S3Service } from '../common/s3.service';
 import { DestinationService } from '../destination/destination.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -282,6 +282,7 @@ export class TripHistoryService {
         userId,
         truck: {
           plate: dto.plate,
+          status: TruckStatus.ACTIVE,
         },
       },
       select: {
@@ -291,7 +292,7 @@ export class TripHistoryService {
 
     if (!assignment) {
       throw new ForbiddenException(
-        'La patente seleccionada no está asignada al usuario autenticado',
+        'La patente seleccionada no está activa o no está asignada al usuario autenticado',
       );
     }
 
