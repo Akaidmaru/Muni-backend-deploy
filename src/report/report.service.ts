@@ -108,6 +108,21 @@ export class ReportService {
     };
   }
 
+  private async attachScreenshotUrls<T extends { screenshotKey: string | null }>(
+    reports: T[],
+  ): Promise<(T & { screenshotUrl: string | null })[]> {
+    return Promise.all(
+      reports.map(async (report) => ({
+        ...report,
+        screenshotUrl: report.screenshotKey
+          ? await this.s3Service
+              .getSignedGetUrl(report.screenshotKey)
+              .catch(() => null)
+          : null,
+      })),
+    );
+  }
+
   async findMine(reporterId: number) {
     const reports = await this.prisma.problemReport.findMany({
       where: { reporterId },
@@ -123,18 +138,7 @@ export class ReportService {
       },
     });
 
-    const reportsWithUrls = await Promise.all(
-      reports.map(async (report) => ({
-        ...report,
-        screenshotUrl: report.screenshotKey
-          ? await this.s3Service
-              .getSignedGetUrl(report.screenshotKey)
-              .catch(() => null)
-          : null,
-      })),
-    );
-
-    return reportsWithUrls;
+    return this.attachScreenshotUrls(reports);
   }
 
   async findAll() {
@@ -158,18 +162,7 @@ export class ReportService {
       },
     });
 
-    const reportsWithUrls = await Promise.all(
-      reports.map(async (report) => ({
-        ...report,
-        screenshotUrl: report.screenshotKey
-          ? await this.s3Service
-              .getSignedGetUrl(report.screenshotKey)
-              .catch(() => null)
-          : null,
-      })),
-    );
-
-    return reportsWithUrls;
+    return this.attachScreenshotUrls(reports);
   }
 
   async updateStatus(id: number, status: ProblemReportStatusValue) {

@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user-dto';
@@ -108,8 +109,18 @@ export class UserService {
     });
   }
 
-  async findAll() {
-    return this.prisma.user.findMany();
+  async findAll(page = 1, pageSize = 50) {
+    const safePage = page > 0 ? page : 1;
+    const safePageSize = Math.min(pageSize > 0 ? pageSize : 50, 200);
+    const [items, total] = await Promise.all([
+      this.prisma.user.findMany({
+        skip: (safePage - 1) * safePageSize,
+        take: safePageSize,
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.user.count(),
+    ]);
+    return { items, total, page: safePage, pageSize: safePageSize };
   }
 
   async findOne(id: number) {
@@ -142,7 +153,6 @@ export class UserService {
   }
 
   async findByVerificationStatus(status: string) {
-    const { BadRequestException } = await import('@nestjs/common');
     if (
       typeof status !== 'string' ||
       (status !== 'true' && status !== 'false')

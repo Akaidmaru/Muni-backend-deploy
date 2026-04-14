@@ -113,8 +113,9 @@ export class AuthService {
         throw new NotFoundException('Ocupación no encontrada');
       }
 
+      const DRIVER_OCCUPATION_NAME = 'conductor';
       role =
-        occupation.name.trim().toLowerCase() === 'conductor'
+        occupation.name.trim().toLowerCase() === DRIVER_OCCUPATION_NAME
           ? UserRole.DRIVER
           : UserRole.EMPLOYEE;
     }

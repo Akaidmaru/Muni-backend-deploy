@@ -83,35 +83,35 @@ export class VehicleMaintenanceRecordService {
         ? truck.mileage
         : recordData.currentMileage;
 
-    // Crear el registro y los items en una transacción
-    const record = await this.prisma.vehicleMaintenanceRecord.create({
-      data: {
-        ...recordData,
-        currentMileage,
-        maintenanceItems: {
-          create: maintenanceItems,
+    return this.prisma.$transaction(async (tx) => {
+      const record = await tx.vehicleMaintenanceRecord.create({
+        data: {
+          ...recordData,
+          currentMileage,
+          maintenanceItems: {
+            create: maintenanceItems,
+          },
         },
-      },
-      include: {
-        maintenanceItems: true,
-      },
-    });
-
-    // Si currentMileage difiere del mileage actual del truck, actualizar
-    if (currentMileage !== truck.mileage) {
-      await this.prisma.truck.update({
-        where: { id: dto.truckId },
-        data: { mileage: currentMileage },
+        include: {
+          maintenanceItems: true,
+        },
       });
-    }
 
-    return {
-      id: record.id,
-      truckId: record.truckId,
-      driverId: record.driverId,
-      inspectionDate: record.inspectionDate,
-      currentMileage: record.currentMileage,
-    };
+      if (currentMileage !== truck.mileage) {
+        await tx.truck.update({
+          where: { id: dto.truckId },
+          data: { mileage: currentMileage },
+        });
+      }
+
+      return {
+        id: record.id,
+        truckId: record.truckId,
+        driverId: record.driverId,
+        inspectionDate: record.inspectionDate,
+        currentMileage: record.currentMileage,
+      };
+    });
   }
 
   /**
@@ -195,10 +195,11 @@ export class VehicleMaintenanceRecordService {
    * Obtener registros por truck e inspectionDate
    */
   async findByTruckAndDate(truckId: number, inspectionDate: Date) {
+    const { startOfDay, endOfDay } = this.getUtcDayRange(inspectionDate);
     const records = await this.prisma.vehicleMaintenanceRecord.findMany({
       where: {
         truckId,
-        inspectionDate,
+        inspectionDate: { gte: startOfDay, lte: endOfDay },
       },
       include: {
         truck: {
@@ -387,60 +388,55 @@ export class VehicleMaintenanceRecordService {
 
     const updateData: any = cleanData;
 
-    // Si maintenanceItems está presente, actualizar items existentes
-    if (maintenanceItems !== undefined && Array.isArray(maintenanceItems)) {
-      // Eliminar items existentes y crear los nuevos
-      await this.prisma.maintenanceItem.deleteMany({
-        where: { recordId: id },
-      });
-      updateData.maintenanceItems = {
-        create: maintenanceItems,
-      };
-    }
-
-    const updated = await this.prisma.vehicleMaintenanceRecord.update({
-      where: { id },
-      data: updateData,
-      include: {
-        truck: {
-          select: {
-            id: true,
-            plate: true,
-            brand: true,
-            model: true,
-            year: true,
-            seatCount: true,
-            technicalReviewExpiresAt: true,
-            circulationPermitExpiresAt: true,
-            insuranceExpiresAt: true,
-            emissionsExpiresAt: true,
-          },
-        },
-        driver: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        maintenanceItems: true,
-      },
-    });
-
-    // Si se actualizó currentMileage y difiere del truck actual, actualizar truck
-    if (cleanData.currentMileage !== undefined) {
-      const truck = await this.prisma.truck.findUnique({
-        where: { id: existing.truckId },
-      });
-      if (truck && Number(cleanData.currentMileage) !== truck.mileage) {
-        await this.prisma.truck.update({
-          where: { id: existing.truckId },
-          data: { mileage: Number(cleanData.currentMileage) },
-        });
+    return this.prisma.$transaction(async (tx) => {
+      if (maintenanceItems !== undefined && Array.isArray(maintenanceItems)) {
+        await tx.maintenanceItem.deleteMany({ where: { recordId: id } });
+        updateData.maintenanceItems = { create: maintenanceItems };
       }
-    }
 
-    return updated;
+      const updated = await tx.vehicleMaintenanceRecord.update({
+        where: { id },
+        data: updateData,
+        include: {
+          truck: {
+            select: {
+              id: true,
+              plate: true,
+              brand: true,
+              model: true,
+              year: true,
+              seatCount: true,
+              technicalReviewExpiresAt: true,
+              circulationPermitExpiresAt: true,
+              insuranceExpiresAt: true,
+              emissionsExpiresAt: true,
+            },
+          },
+          driver: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          maintenanceItems: true,
+        },
+      });
+
+      if (cleanData.currentMileage !== undefined) {
+        const truck = await tx.truck.findUnique({
+          where: { id: existing.truckId },
+        });
+        if (truck && Number(cleanData.currentMileage) !== truck.mileage) {
+          await tx.truck.update({
+            where: { id: existing.truckId },
+            data: { mileage: Number(cleanData.currentMileage) },
+          });
+        }
+      }
+
+      return updated;
+    });
   }
 
   /**

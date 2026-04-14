@@ -16,7 +16,7 @@ import {
   ApiOperation,
   ApiResponse,
 } from '@nestjs/swagger';
-import { UserService } from './user.service';
+import { UserService, UserListItem } from './user.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
@@ -91,13 +91,9 @@ export class UserController {
   async getUsersByRoles(
     @Req() req: AuthenticatedRequest,
     @Query('roles') roles?: string | string[],
-  ): Promise<unknown> {
+  ): Promise<UserListItem[]> {
     const parsedRoles = this.parseRolesQuery(roles);
-    const users: unknown = await this.userService.findByRoles(
-      req.user.id,
-      parsedRoles,
-    );
-    return users;
+    return this.userService.findByRoles(req.user.id, parsedRoles);
   }
 
   @Get('me/trucks')
@@ -208,8 +204,14 @@ export class UserController {
       },
     },
   })
-  findAll() {
-    return this.userService.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.userService.findAll(
+      page ? Number(page) : undefined,
+      pageSize ? Number(pageSize) : undefined,
+    );
   }
 
   @Get(':id')
