@@ -28,9 +28,16 @@ model User {
 model Truck {
   id                      Int               @id @default(autoincrement())
   plate                   String            @unique
+  brand                   String?
   model                   String
+  year                    Int?
+  seatCount               Int?
   mileage                 Float            @default(0)
   status                  TruckStatus      @default(ACTIVE)
+  technicalReviewExpiresAt DateTime?        @db.Date
+  circulationPermitExpiresAt DateTime?      @db.Date
+  insuranceExpiresAt      DateTime?         @db.Date
+  emissionsExpiresAt      DateTime?         @db.Date
   users                   TruckAssignment[]
   tripHistories           TripHistory[]
   vehicleMaintenanceRecords VehicleMaintenanceRecord[]
@@ -138,11 +145,6 @@ model VehicleMaintenanceRecord {
   inspectionTime            String
   municipalLicense          String
   currentMileage            Float
-  
-  // Documentos/Anexos
-  technicalReviewStatus     String   // "Bueno", "Regular", "Malo"
-  circulationPermitStatus   String   // "Bueno", "Regular", "Malo"
-  insuranceStatus           String   // "Bueno", "Regular", "Malo"
   
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
