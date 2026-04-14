@@ -10,6 +10,7 @@ import { DestinationModule } from './destination/destination.module';
 import { ReportModule } from './report/report.module';
 import { TripHistoryModule } from './trip-history/trip-history.module';
 import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/vehicle-maintenance-record.module';
+import { AiChatModule } from './ai-chat/ai-chat.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/veh
     ReportModule,
     TripHistoryModule,
     VehicleMaintenanceRecordModule,
+    AiChatModule,
   ],
   controllers: [],
   providers: [],
