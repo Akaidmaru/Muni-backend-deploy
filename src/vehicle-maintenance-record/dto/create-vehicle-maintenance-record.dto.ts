@@ -28,15 +28,6 @@ export class CreateVehicleMaintenanceRecordDto {
   @IsNumber()
   currentMileage: number = 0;
 
-  @IsString()
-  technicalReviewStatus: string = ''; // "Bueno", "Regular", "Malo"
-
-  @IsString()
-  circulationPermitStatus: string = ''; // "Bueno", "Regular", "Malo"
-
-  @IsString()
-  insuranceStatus: string = ''; // "Bueno", "Regular", "Malo"
-
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateMaintenanceItemDto)

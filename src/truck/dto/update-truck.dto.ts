@@ -1,6 +1,12 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateTruckDto } from './create-truck.dto';
-import { IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -18,6 +24,31 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
   model?: string;
 
   @ApiPropertyOptional({
+    example: 'Scania',
+    description: 'Marca del camión',
+  })
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @ApiPropertyOptional({
+    example: 2024,
+    description: 'Año del camión',
+  })
+  @IsOptional()
+  @IsNumber()
+  year?: number;
+
+  @ApiPropertyOptional({
+    example: 2,
+    description: 'Cantidad de asientos del camión',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  seatCount?: number;
+
+  @ApiPropertyOptional({
     example: 130500,
     description: 'Kilometraje actualizado del camión',
   })
@@ -25,4 +56,37 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
   @IsNumber()
   @Min(0)
   mileage?: number;
+
+  @ApiPropertyOptional({
+    example: '2026-12-31',
+    description: 'Fecha de vencimiento de revisión técnica (YYYY-MM-DD)',
+  })
+  @IsOptional()
+  @IsDateString()
+  technicalReviewExpiresAt?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-12-31',
+    description: 'Fecha de vencimiento de permiso de circulación (YYYY-MM-DD)',
+  })
+  @IsOptional()
+  @IsDateString()
+  circulationPermitExpiresAt?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-12-31',
+    description: 'Fecha de vencimiento de seguro obligatorio (YYYY-MM-DD)',
+  })
+  @IsOptional()
+  @IsDateString()
+  insuranceExpiresAt?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-12-31',
+    description:
+      'Fecha de vencimiento de emisión de contaminantes (YYYY-MM-DD)',
+  })
+  @IsOptional()
+  @IsDateString()
+  emissionsExpiresAt?: string;
 }

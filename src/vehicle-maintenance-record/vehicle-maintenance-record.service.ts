@@ -124,7 +124,14 @@ export class VehicleMaintenanceRecordService {
           select: {
             id: true,
             plate: true,
+            brand: true,
             model: true,
+            year: true,
+            seatCount: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
           },
         },
         driver: {
@@ -153,8 +160,15 @@ export class VehicleMaintenanceRecordService {
           select: {
             id: true,
             plate: true,
+            brand: true,
             model: true,
+            year: true,
+            seatCount: true,
             mileage: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
           },
         },
         driver: {
@@ -191,7 +205,14 @@ export class VehicleMaintenanceRecordService {
           select: {
             id: true,
             plate: true,
+            brand: true,
             model: true,
+            year: true,
+            seatCount: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
           },
         },
         driver: {
@@ -227,8 +248,15 @@ export class VehicleMaintenanceRecordService {
           select: {
             id: true,
             plate: true,
+            brand: true,
             model: true,
+            year: true,
+            seatCount: true,
             mileage: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
           },
         },
         driver: {
@@ -267,8 +295,15 @@ export class VehicleMaintenanceRecordService {
           select: {
             id: true,
             plate: true,
+            brand: true,
             model: true,
+            year: true,
+            seatCount: true,
             mileage: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
           },
         },
         driver: {
@@ -294,7 +329,14 @@ export class VehicleMaintenanceRecordService {
           select: {
             id: true,
             plate: true,
+            brand: true,
             model: true,
+            year: true,
+            seatCount: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
           },
         },
         driver: {
@@ -364,7 +406,14 @@ export class VehicleMaintenanceRecordService {
           select: {
             id: true,
             plate: true,
+            brand: true,
             model: true,
+            year: true,
+            seatCount: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
           },
         },
         driver: {
