@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { Prisma, TripHistoryStatus, TruckStatus, UserRole } from '@prisma/client';
+import {
+  Prisma,
+  TripHistoryStatus,
+  TruckStatus,
+  UserRole,
+} from '@prisma/client';
 import { S3Service } from '../common/s3.service';
 import { RedisService } from '../redis/redis.service';
 import { DestinationService } from '../destination/destination.service';
@@ -414,8 +419,13 @@ export class TripHistoryService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    if (requester.role !== UserRole.DRIVER) {
-      throw new ForbiddenException('Solo el conductor puede enviar puntos GPS');
+    if (
+      requester.role !== UserRole.DRIVER &&
+      requester.role !== UserRole.ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Solo conductor o administrador pueden enviar puntos GPS',
+      );
     }
 
     const tripHistory = await this.prisma.tripHistory.findUnique({
