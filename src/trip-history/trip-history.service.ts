@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'crypto';
 import { Prisma, TripHistoryStatus, TruckStatus, UserRole } from '@prisma/client';
 import { S3Service } from '../common/s3.service';
+import { RedisService } from '../redis/redis.service';
 import { DestinationService } from '../destination/destination.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleRoadsService } from '../route/googleRoads.service';
@@ -33,12 +34,33 @@ type PaginationData = {
 
 @Injectable()
 export class TripHistoryService {
+  private readonly signedUrlCacheTtl = 3000; // 50 min (S3 TTL es 60 min)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
+    private readonly redisService: RedisService,
     private readonly googleRoadsService: GoogleRoadsService,
     private readonly destinationService: DestinationService,
   ) {}
+
+  private async getCachedSignedUrl(key: string): Promise<string | null> {
+    const cacheKey = `s3:signed-url:${key}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) return cached;
+    const url = await this.s3Service.getSignedGetUrl(key).catch(() => null);
+    if (url) await this.redisService.set(cacheKey, url, this.signedUrlCacheTtl);
+    return url;
+  }
+
+  private async getCachedDataUrl(key: string): Promise<string | null> {
+    const cacheKey = `s3:data-url:${key}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) return cached;
+    const url = await this.s3Service.getObjectDataUrl(key).catch(() => null);
+    if (url) await this.redisService.set(cacheKey, url, this.signedUrlCacheTtl);
+    return url;
+  }
 
   private parsePagination(options: FindAllOptions): PaginationData {
     const page =
@@ -200,12 +222,8 @@ export class TripHistoryService {
 
         const [signatureUrl, signatureDataUrl] = item.signatureKey
           ? await Promise.all([
-              this.s3Service
-                .getSignedGetUrl(item.signatureKey)
-                .catch(() => null),
-              this.s3Service
-                .getObjectDataUrl(item.signatureKey)
-                .catch(() => null),
+              this.getCachedSignedUrl(item.signatureKey),
+              this.getCachedDataUrl(item.signatureKey),
             ])
           : [null, null];
 
@@ -544,7 +562,7 @@ export class TripHistoryService {
 
     if (tripHistory.status !== TripHistoryStatus.COMPLETED) {
       throw new BadRequestException(
-        'Solo se puede completar un viaje en estado COMPLETED',
+        'Solo se puede asignar un paciente a un viaje completado',
       );
     }
 
@@ -552,7 +570,6 @@ export class TripHistoryService {
       where: { id: tripHistory.id },
       data: {
         patientId: patient.id,
-        status: TripHistoryStatus.COMPLETED,
       },
       select: {
         id: true,

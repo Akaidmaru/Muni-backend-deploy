@@ -11,9 +11,16 @@ import { CommonModule } from '../common/common.module';
   imports: [
     PrismaModule,
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'default_secret',
-      signOptions: { expiresIn: '1d' },
+    JwtModule.registerAsync({
+      useFactory: () => {
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+          throw new Error(
+            'JWT_SECRET environment variable is required but not set',
+          );
+        }
+        return { secret, signOptions: { expiresIn: '1d' } };
+      },
     }),
     CommonModule,
   ],
