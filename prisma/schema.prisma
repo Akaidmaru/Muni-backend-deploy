@@ -10,6 +10,7 @@ datasource db {
 model User {
   id                      Int               @id @default(autoincrement())
   email                   String            @unique
+  rut                     String            @unique
   phone                   String?           @unique
   name                    String?
   password                String
@@ -19,7 +20,7 @@ model User {
   occupation              Occupation?      @relation(fields: [occupationId], references: [id])
   trucks                  TruckAssignment[]
   tripHistories           TripHistory[]
-  vehicleMaintenanceRecords VehicleMaintenanceRecord[]
+  dailyMaintenanceRecords DailyMaintenanceRecord[]
   problemReports          ProblemReport[]
   plateChangeLogs         TruckPlateChangeLog[]
   isVerified              Boolean          @default(false)
@@ -40,7 +41,8 @@ model Truck {
   emissionsExpiresAt      DateTime?         @db.Date
   users                   TruckAssignment[]
   tripHistories           TripHistory[]
-  vehicleMaintenanceRecords VehicleMaintenanceRecord[]
+  dailyMaintenanceRecords DailyMaintenanceRecord[]
+  monthlyMaintenanceRecords MonthlyMaintenanceRecord[]
   plateChangeLogs         TruckPlateChangeLog[]
 }
 
@@ -50,18 +52,6 @@ model Destination {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   tripHistories TripHistory[]
-  patients  Patient[]
-}
-
-model Patient {
-  id            Int         @id @default(autoincrement())
-  name          String
-  destinationId Int
-  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
-  tripHistories TripHistory[]
-
-  @@index([destinationId])
-  @@unique([destinationId, name])
 }
 
 model TripHistory {
@@ -76,11 +66,9 @@ model TripHistory {
   truckId       Int
   destinationId Int
   employeeId    Int
-  patientId     Int?
   truck         Truck       @relation(fields: [truckId], references: [id])
   destination   Destination @relation(fields: [destinationId], references: [id])
   employee      User        @relation(fields: [employeeId], references: [id])
-  patient       Patient?    @relation(fields: [patientId], references: [id])
   createdAt     DateTime    @default(now())
   points        TripHistoryPoint[]
 
@@ -88,7 +76,6 @@ model TripHistory {
   @@index([truckId])
   @@index([destinationId])
   @@index([employeeId])
-  @@index([patientId])
   @@index([status])
 }
 
@@ -137,7 +124,7 @@ model Occupation {
   users User[]
 }
 
-model VehicleMaintenanceRecord {
+model DailyMaintenanceRecord {
   id                        Int     @id @default(autoincrement())
   truckId                   Int
   driverId                  Int
@@ -152,16 +139,17 @@ model VehicleMaintenanceRecord {
   // Relaciones
   truck                     Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
   driver                    User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  maintenanceItems          MaintenanceItem[]
+  dailyMaintenanceItems     DailyMaintenanceItem[]
   
   // Índice compuesto: una vez por vehículo/conductor/día
   @@unique([truckId, driverId, inspectionDate])
   @@index([truckId])
   @@index([driverId])
   @@index([inspectionDate])
+  @@map("DailyMaintenanceRecord")
 }
 
-model MaintenanceItem {
+model DailyMaintenanceItem {
   id          Int     @id @default(autoincrement())
   recordId    Int
   itemCode    String  // "estacionamiento", "frenoMano", etc.
@@ -171,10 +159,45 @@ model MaintenanceItem {
   status      String  // "Bueno", "Regular", "Malo"
   notes       String?
   
-  record      VehicleMaintenanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  record      DailyMaintenanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
   
   @@index([recordId])
   @@unique([recordId, itemCode])
+  @@map("DailyMaintenanceItem")
+}
+
+model MonthlyMaintenanceRecord {
+  id                      Int     @id @default(autoincrement())
+  truckId                 Int
+  monthKey                String  // Formato YYYY-MM
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  truck                   Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  monthlyMaintenanceItems MonthlyMaintenanceItem[]
+
+  @@unique([truckId, monthKey])
+  @@index([truckId])
+  @@index([monthKey])
+  @@map("MonthlyMaintenanceRecord")
+}
+
+model MonthlyMaintenanceItem {
+  id          Int     @id @default(autoincrement())
+  recordId    Int
+  weekIndex   Int     // 1..5
+  itemCode    String
+  itemName    String
+  category    String
+  status      String
+  notes       String?
+
+  record      MonthlyMaintenanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId])
+  @@index([weekIndex])
+  @@unique([recordId, weekIndex, itemCode])
+  @@map("MonthlyMaintenanceItem")
 }
 
 model ProblemReport {
@@ -194,6 +217,7 @@ model ProblemReport {
 }
 
 enum UserRole {
+  PENDING_APPROVAL
   EMPLOYEE
   DRIVER
   ADMIN

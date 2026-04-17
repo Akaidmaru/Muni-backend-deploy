@@ -6,9 +6,9 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CreateMaintenanceItemDto } from './create-maintenance-item.dto';
+import { CreateDailyMaintenanceItemDto } from './create-daily-maintenance-item.dto';
 
-export class CreateVehicleMaintenanceRecordDto {
+export class CreateDailyMaintenanceRecordDto {
   @IsNumber()
   truckId: number = 0;
 
@@ -30,6 +30,6 @@ export class CreateVehicleMaintenanceRecordDto {
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => CreateMaintenanceItemDto)
-  maintenanceItems: CreateMaintenanceItemDto[] = [];
+  @Type(() => CreateDailyMaintenanceItemDto)
+  dailyMaintenanceItems: CreateDailyMaintenanceItemDto[] = [];
 }

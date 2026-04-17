@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -8,44 +7,21 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDestinationDto } from './dto/create-destination.dto';
 import { UpdateDestinationDto } from './dto/update-destination.dto';
 
-export type PatientResponse = {
-  id: number;
-  name: string;
-};
-
 export type DestinationResponse = {
   id: number;
   name: string;
   active: boolean;
-  patients: PatientResponse[];
 };
 
 @Injectable()
 export class DestinationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private normalizePatientNames(patients: string[]): string[] {
-    const normalized = patients
-      .map((name) => name.trim())
-      .filter((name) => name.length > 0);
-
-    return [...new Set(normalized)];
-  }
-
   private get destinationSelect() {
     return {
       id: true,
       name: true,
       active: true,
-      patients: {
-        select: {
-          id: true,
-          name: true,
-        },
-        orderBy: {
-          name: 'asc' as const,
-        },
-      },
     };
   }
 
@@ -58,21 +34,10 @@ export class DestinationService {
       throw new ConflictException(`El destino "${data.name}" ya existe`);
     }
 
-    const patientNames = this.normalizePatientNames(data.patients);
-
-    if (patientNames.length === 0) {
-      throw new BadRequestException(
-        'Debe enviar al menos un paciente con nombre válido',
-      );
-    }
-
     const destination = await this.prisma.destination.create({
       data: {
         name: data.name,
-        active: data.active,
-        patients: {
-          create: patientNames.map((name) => ({ name })),
-        },
+        active: data.active ?? true,
       },
       select: this.destinationSelect,
     });
@@ -84,7 +49,7 @@ export class DestinationService {
     const normalizedName = name.trim();
 
     if (normalizedName.length < 2 || normalizedName.length > 120) {
-      throw new BadRequestException(
+      throw new ConflictException(
         'El nombre del destino debe tener entre 2 y 120 caracteres',
       );
     }
@@ -178,10 +143,6 @@ export class DestinationService {
     const updateData: {
       name?: string;
       active?: boolean;
-      patients?: {
-        deleteMany: Record<string, never>;
-        create: { name: string }[];
-      };
     } = {};
 
     if (data.name !== undefined) {
@@ -190,21 +151,6 @@ export class DestinationService {
 
     if (data.active !== undefined) {
       updateData.active = data.active;
-    }
-
-    if (data.patients !== undefined) {
-      const patientNames = this.normalizePatientNames(data.patients);
-
-      if (patientNames.length === 0) {
-        throw new BadRequestException(
-          'Debe enviar al menos un paciente con nombre válido',
-        );
-      }
-
-      updateData.patients = {
-        deleteMany: {},
-        create: patientNames.map((name) => ({ name })),
-      };
     }
 
     const destination = await this.prisma.destination.update({

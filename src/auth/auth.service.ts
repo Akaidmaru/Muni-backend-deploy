@@ -37,6 +37,7 @@ interface OccupationWithName {
 interface CurrentUserResponse {
   id: number;
   email: string;
+  rut: string;
   name: string | null;
   role: string;
 }
@@ -79,8 +80,9 @@ export class AuthService {
 
   async register(data: CreateUserDto) {
     const normalizedEmail = data.email.trim().toLowerCase();
+    const normalizedRut = data.rut.trim().toUpperCase();
     const normalizedPhone = data.phone?.trim() || undefined;
-    let role: UserRole = UserRole.EMPLOYEE;
+    const role: UserRole = UserRole.PENDING_APPROVAL;
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -88,6 +90,15 @@ export class AuthService {
 
     if (existingUser) {
       throw new ConflictException('El email ya está registrado');
+    }
+
+    const existingRutUser = await this.prisma.user.findUnique({
+      where: { rut: normalizedRut },
+      select: { id: true },
+    });
+
+    if (existingRutUser) {
+      throw new ConflictException('El RUT ya está registrado');
     }
 
     if (normalizedPhone) {
@@ -112,12 +123,6 @@ export class AuthService {
       if (!occupation) {
         throw new NotFoundException('Ocupación no encontrada');
       }
-
-      const DRIVER_OCCUPATION_NAME = 'conductor';
-      role =
-        occupation.name.trim().toLowerCase() === DRIVER_OCCUPATION_NAME
-          ? UserRole.DRIVER
-          : UserRole.EMPLOYEE;
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -127,6 +132,7 @@ export class AuthService {
         data: {
           ...data,
           email: normalizedEmail,
+          rut: normalizedRut,
           phone: normalizedPhone,
           role,
           password: hashedPassword,
@@ -134,6 +140,7 @@ export class AuthService {
         select: {
           id: true,
           email: true,
+          rut: true,
           name: true,
           phone: true,
           role: true,
@@ -163,6 +170,10 @@ export class AuthService {
 
         if (target.includes('email')) {
           throw new ConflictException('El email ya está registrado');
+        }
+
+        if (target.includes('rut')) {
+          throw new ConflictException('El RUT ya está registrado');
         }
 
         throw new ConflictException(
@@ -322,6 +333,7 @@ export class AuthService {
       select: {
         id: true,
         email: true,
+        rut: true,
         name: true,
         role: true,
         isVerified: true,
@@ -348,6 +360,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        rut: user.rut,
         name: user.name,
         role: user.role,
       },
@@ -360,6 +373,7 @@ export class AuthService {
       select: {
         id: true,
         email: true,
+        rut: true,
         name: true,
         role: true,
       },

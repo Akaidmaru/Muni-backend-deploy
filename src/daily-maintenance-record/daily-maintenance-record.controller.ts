@@ -11,21 +11,21 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { VehicleMaintenanceRecordService } from './vehicle-maintenance-record.service';
+import { DailyMaintenanceRecordService } from './daily-maintenance-record.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import {
-  CreateVehicleMaintenanceRecordDto,
-  UpdateVehicleMaintenanceRecordDto,
+  CreateDailyMaintenanceRecordDto,
+  UpdateDailyMaintenanceRecordDto,
 } from './dto';
 
 @ApiBearerAuth()
-@Controller('vehicle-maintenance-records')
+@Controller('daily-maintenance-records')
 @UseGuards(JwtAuthGuard, RolesGuard)
-export class VehicleMaintenanceRecordController {
+export class DailyMaintenanceRecordController {
   constructor(
-    private readonly vehicleMaintenanceRecordService: VehicleMaintenanceRecordService,
+    private readonly DailyMaintenanceRecordService: DailyMaintenanceRecordService,
   ) {}
 
   @Post()
@@ -37,8 +37,8 @@ export class VehicleMaintenanceRecordController {
     status: 201,
     description: 'Registro de mantenimiento creado exitosamente',
   })
-  async create(@Body() dto: CreateVehicleMaintenanceRecordDto) {
-    return await this.vehicleMaintenanceRecordService.create(dto);
+  async create(@Body() dto: CreateDailyMaintenanceRecordDto) {
+    return await this.DailyMaintenanceRecordService.create(dto);
   }
 
   @Get()
@@ -49,7 +49,18 @@ export class VehicleMaintenanceRecordController {
     description: 'Lista de registros de mantenimiento',
   })
   async findAll() {
-    return await this.vehicleMaintenanceRecordService.findAll();
+    return await this.DailyMaintenanceRecordService.findAll();
+  }
+
+  @Get('admin')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Listar todos los registros de mantenimiento (ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de registros de mantenimiento (solo ADMIN)',
+  })
+  async findAllAdmin() {
+    return await this.DailyMaintenanceRecordService.findAll();
   }
 
   @Get('truck/:truckId')
@@ -60,7 +71,7 @@ export class VehicleMaintenanceRecordController {
     description: 'Registros de mantenimiento del vehículo',
   })
   async findByTruck(@Param('truckId', ParseIntPipe) truckId: number) {
-    return await this.vehicleMaintenanceRecordService.findByTruck(truckId);
+    return await this.DailyMaintenanceRecordService.findByTruck(truckId);
   }
 
   @Get('truck/:truckId/date')
@@ -81,7 +92,7 @@ export class VehicleMaintenanceRecordController {
     if (isNaN(date.getTime())) {
       throw new Error('Formato de fecha inválido');
     }
-    return await this.vehicleMaintenanceRecordService.findByTruckAndDate(
+    return await this.DailyMaintenanceRecordService.findByTruckAndDate(
       truckId,
       date,
     );
@@ -105,7 +116,7 @@ export class VehicleMaintenanceRecordController {
     if (isNaN(date.getTime())) {
       throw new Error('Formato de fecha inválido');
     }
-    return await this.vehicleMaintenanceRecordService.findByDriverAndDate(
+    return await this.DailyMaintenanceRecordService.findByDriverAndDate(
       driverId,
       date,
     );
@@ -131,7 +142,7 @@ export class VehicleMaintenanceRecordController {
     if (isNaN(date.getTime())) {
       throw new Error('Formato de fecha inválido');
     }
-    return await this.vehicleMaintenanceRecordService.findByDriverTruckAndDate(
+    return await this.DailyMaintenanceRecordService.findByDriverTruckAndDate(
       driverId,
       truckId,
       date,
@@ -148,7 +159,7 @@ export class VehicleMaintenanceRecordController {
     description: 'Kilometraje sugerido para el formulario',
   })
   async getMileageSuggestion(@Param('truckId', ParseIntPipe) truckId: number) {
-    return await this.vehicleMaintenanceRecordService.getTruckMileageSuggestion(
+    return await this.DailyMaintenanceRecordService.getTruckMileageSuggestion(
       truckId,
     );
   }
@@ -164,7 +175,7 @@ export class VehicleMaintenanceRecordController {
     description: 'Kilometraje sugerido para el formulario',
   })
   async getMileageSuggestionByPlate(@Param('plate') plate: string) {
-    return await this.vehicleMaintenanceRecordService.getTruckMileageSuggestionByPlate(
+    return await this.DailyMaintenanceRecordService.getTruckMileageSuggestionByPlate(
       plate,
     );
   }
@@ -177,7 +188,18 @@ export class VehicleMaintenanceRecordController {
     description: 'Detalles del registro de mantenimiento',
   })
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    return await this.vehicleMaintenanceRecordService.findOne(id);
+    return await this.DailyMaintenanceRecordService.findOne(id);
+  }
+
+  @Get('admin/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Obtener registro de mantenimiento por ID (ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Detalles del registro de mantenimiento (solo ADMIN)',
+  })
+  async findOneAdmin(@Param('id', ParseIntPipe) id: number) {
+    return await this.DailyMaintenanceRecordService.findOne(id);
   }
 
   @Patch(':id')
@@ -189,9 +211,9 @@ export class VehicleMaintenanceRecordController {
   })
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateVehicleMaintenanceRecordDto,
+    @Body() dto: UpdateDailyMaintenanceRecordDto,
   ) {
-    return await this.vehicleMaintenanceRecordService.update(id, dto);
+    return await this.DailyMaintenanceRecordService.update(id, dto);
   }
 
   @Delete(':id')
@@ -202,6 +224,6 @@ export class VehicleMaintenanceRecordController {
     description: 'Registro de mantenimiento eliminado',
   })
   async remove(@Param('id', ParseIntPipe) id: number) {
-    return await this.vehicleMaintenanceRecordService.remove(id);
+    return await this.DailyMaintenanceRecordService.remove(id);
   }
 }

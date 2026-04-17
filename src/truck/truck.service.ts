@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
 import { AssignUserDto } from './dto/assign-user.dto';
-import { PlateChangeReason, TruckStatus } from '@prisma/client';
+import { PlateChangeReason, TruckStatus, UserRole } from '@prisma/client';
 import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
 
 @Injectable()
@@ -15,11 +15,56 @@ export class TruckService {
   }
 
   findAll() {
-    return this.prisma.truck.findMany();
+    return this.prisma.truck.findMany({
+      include: {
+        users: {
+          where: {
+            user: {
+              role: UserRole.DRIVER,
+            },
+          },
+          select: {
+            userId: true,
+            truckId: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
   findOne(id: number) {
-    return this.prisma.truck.findUnique({ where: { id } });
+    return this.prisma.truck.findUnique({
+      where: { id },
+      include: {
+        users: {
+          where: {
+            user: {
+              role: UserRole.DRIVER,
+            },
+          },
+          select: {
+            userId: true,
+            truckId: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
   update(id: number, dto: UpdateTruckDto) {

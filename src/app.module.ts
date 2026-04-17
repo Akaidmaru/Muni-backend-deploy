@@ -9,7 +9,8 @@ import { OccupationModule } from './occupation/occupation.module';
 import { DestinationModule } from './destination/destination.module';
 import { ReportModule } from './report/report.module';
 import { TripHistoryModule } from './trip-history/trip-history.module';
-import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/vehicle-maintenance-record.module';
+import { DailyMaintenanceRecordModule } from './daily-maintenance-record/daily-maintenance-record.module';
+import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/monthly-maintenance-record.module';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/veh
     DestinationModule,
     ReportModule,
     TripHistoryModule,
-    VehicleMaintenanceRecordModule,
+    DailyMaintenanceRecordModule,
+    MonthlyMaintenanceRecordModule,
   ],
   controllers: [],
   providers: [],

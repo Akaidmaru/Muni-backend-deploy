@@ -14,6 +14,11 @@ export class CreateUserDto {
   @IsNotEmpty()
   email: string;
 
+  @ApiProperty({ example: '12.345.678-9' })
+  @IsString()
+  @IsNotEmpty()
+  rut: string;
+
   @ApiPropertyOptional({ example: '+573001234567' })
   @IsOptional()
   @IsString()

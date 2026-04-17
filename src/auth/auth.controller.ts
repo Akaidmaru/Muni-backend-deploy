@@ -28,6 +28,7 @@ interface AuthenticatedRequest extends Request {
 interface CurrentUserResponse {
   id: number;
   email: string;
+  rut: string;
   name: string | null;
   role: string;
 }
@@ -76,6 +77,7 @@ export class AuthController {
     schema: {
       example: {
         email: 'ejemplo@email.com',
+        rut: '12.345.678-9',
         name: 'Ejemplo Nombre',
         phone: '+573001234567',
         password: 'contraseña123',
@@ -91,6 +93,7 @@ export class AuthController {
         value: {
           id: 1,
           email: 'nuevo@email.com',
+          rut: '12.345.678-9',
           name: 'Nuevo Usuario',
           phone: '+573001112233',
         },
@@ -222,6 +225,7 @@ export class AuthController {
         value: {
           id: 1,
           email: 'usuario@email.com',
+          rut: '12.345.678-9',
           name: 'Usuario',
           role: 'DRIVER',
         },

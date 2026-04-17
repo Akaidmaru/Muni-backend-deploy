@@ -19,6 +19,7 @@ import { UserRole } from '@prisma/client';
 export interface UserListItem {
   id: number;
   email: string;
+  rut: string;
   phone: string | null;
   name: string | null;
   createdAt: Date;
@@ -70,6 +71,7 @@ export class UserService {
       select: {
         id: true,
         email: true,
+        rut: true,
         phone: true,
         name: true,
         createdAt: true,
@@ -82,28 +84,91 @@ export class UserService {
   }
 
   async create(dto: CreateUserDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const normalizedRut = dto.rut.trim().toUpperCase();
+    const normalizedPhone = dto.phone?.trim() || undefined;
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    return this.prisma.user.create({
-      data: {
-        ...dto,
-        password: hashedPassword,
-      },
-    });
+    try {
+      return await this.prisma.user.create({
+        data: {
+          ...dto,
+          email: normalizedEmail,
+          rut: normalizedRut,
+          phone: normalizedPhone,
+          password: hashedPassword,
+        },
+      });
+    } catch (error: unknown) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const rawTarget = error.meta?.target;
+        const target = Array.isArray(rawTarget)
+          ? rawTarget.join(',')
+          : typeof rawTarget === 'string'
+            ? rawTarget
+            : '';
+
+        if (target.includes('email')) {
+          throw new ConflictException('El email ya está registrado');
+        }
+
+        if (target.includes('rut')) {
+          throw new ConflictException('El RUT ya está registrado');
+        }
+
+        if (target.includes('phone')) {
+          throw new ConflictException(
+            'El número de teléfono ya está registrado',
+          );
+        }
+      }
+
+      throw error;
+    }
   }
 
   async adminCreate(dto: AdminCreateUserDto) {
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.email.trim().toLowerCase() },
     });
 
     if (existingUser) {
       throw new ConflictException('El email ya está registrado');
     }
 
+    const normalizedRut = dto.rut.trim().toUpperCase();
+
+    const existingRutUser = await this.prisma.user.findUnique({
+      where: { rut: normalizedRut },
+      select: { id: true },
+    });
+
+    if (existingRutUser) {
+      throw new ConflictException('El RUT ya está registrado');
+    }
+
+    const normalizedPhone = dto.phone?.trim() || undefined;
+
+    if (normalizedPhone) {
+      const existingPhoneUser = await this.prisma.user.findUnique({
+        where: { phone: normalizedPhone },
+        select: { id: true },
+      });
+
+      if (existingPhoneUser) {
+        throw new ConflictException('El número de teléfono ya está registrado');
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     return this.prisma.user.create({
       data: {
         ...dto,
+        email: dto.email.trim().toLowerCase(),
+        rut: normalizedRut,
+        phone: normalizedPhone,
         password: hashedPassword,
       },
     });

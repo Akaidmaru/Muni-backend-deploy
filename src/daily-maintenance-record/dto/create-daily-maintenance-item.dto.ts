@@ -1,6 +1,6 @@
 import { IsString, IsOptional } from 'class-validator';
 
-export class CreateMaintenanceItemDto {
+export class CreateDailyMaintenanceItemDto {
   @IsString()
   itemCode: string = '';
 
