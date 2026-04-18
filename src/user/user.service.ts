@@ -170,6 +170,7 @@ export class UserService {
         rut: normalizedRut,
         phone: normalizedPhone,
         password: hashedPassword,
+        isVerified: true,
       },
     });
   }

@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateDailyMaintenanceRecordDto,
@@ -386,7 +387,7 @@ export class DailyMaintenanceRecordService {
         }),
     );
 
-    const updateData: any = cleanData;
+    const updateData = cleanData as Prisma.DailyMaintenanceRecordUpdateInput;
 
     return this.prisma.$transaction(async (tx) => {
       if (dailyMaintenanceItems !== undefined && Array.isArray(dailyMaintenanceItems)) {

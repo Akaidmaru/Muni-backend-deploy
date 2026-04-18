@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class CreateDailyMaintenanceItemDto {
   @IsString()
@@ -10,11 +10,11 @@ export class CreateDailyMaintenanceItemDto {
   @IsString()
   category: string = '';
 
-  @IsString()
-  exists: string = ''; // "Si" o "No"
+  @IsIn(['Si', 'No'])
+  exists: string = '';
 
-  @IsString()
-  status: string = ''; // "Bueno", "Regular", "Malo"
+  @IsIn(['Bueno', 'Regular', 'Malo', ''])
+  status: string = '';
 
   @IsString()
   @IsOptional()

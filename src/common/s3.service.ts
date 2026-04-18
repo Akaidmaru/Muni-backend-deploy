@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -105,6 +106,22 @@ export class S3Service {
     }
 
     return params.key;
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    try {
+      await this.client.send(command);
+    } catch (error) {
+      const err = error as { name?: string; message?: string };
+      this.logger.error(
+        `Error eliminando objeto de S3. bucket=${this.bucketName} key=${key} error=${err?.name || 'UnknownError'}`,
+      );
+    }
   }
 
   async getSignedGetUrl(key: string): Promise<string> {

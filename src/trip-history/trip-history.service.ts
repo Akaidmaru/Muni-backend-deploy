@@ -468,6 +468,19 @@ export class TripHistoryService {
   }
 
   async finishTrip(userId: number, tripHistoryId: number, dto: FinishTripDto) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (requester.role !== UserRole.DRIVER) {
+      throw new ForbiddenException('Solo el conductor puede finalizar el viaje');
+    }
+
     const tripHistory = await this.prisma.tripHistory.findUnique({
       where: { id: tripHistoryId },
       select: {
@@ -536,38 +549,43 @@ export class TripHistoryService {
       key: signatureKey,
     });
 
-    return this.prisma.$transaction(async (tx) => {
-      const updatedTrip = await tx.tripHistory.update({
-        where: { id: tripHistory.id },
-        data: {
-          endTime: dto.endTime,
-          endKm,
-          status: TripHistoryStatus.COMPLETED,
-          signatureKey,
-        },
-        select: {
-          id: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          startKm: true,
-          endKm: true,
-          status: true,
-          truckId: true,
-          destinationId: true,
-          employeeId: true,
-        },
-      });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const updatedTrip = await tx.tripHistory.update({
+          where: { id: tripHistory.id },
+          data: {
+            endTime: dto.endTime,
+            endKm,
+            status: TripHistoryStatus.COMPLETED,
+            signatureKey,
+          },
+          select: {
+            id: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            startKm: true,
+            endKm: true,
+            status: true,
+            truckId: true,
+            destinationId: true,
+            employeeId: true,
+          },
+        });
 
-      await tx.truck.update({
-        where: { id: tripHistory.truckId },
-        data: {
-          mileage: endKm,
-        },
-      });
+        await tx.truck.update({
+          where: { id: tripHistory.truckId },
+          data: {
+            mileage: endKm,
+          },
+        });
 
-      return updatedTrip;
-    });
+        return updatedTrip;
+      });
+    } catch (error) {
+      await this.s3Service.deleteObject(signatureKey);
+      throw error;
+    }
   }
 
   private buildSignatureKey(tripHistoryId: number): string {

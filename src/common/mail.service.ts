@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 @Injectable()
 export class MailService {
@@ -23,8 +23,8 @@ export class MailService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `Brevo respondió con ${response.status}: ${errorText || response.statusText}`,
+      throw new InternalServerErrorException(
+        `No se pudo enviar el correo de verificación. Intente nuevamente más tarde. (${response.status}: ${errorText || response.statusText})`,
       );
     }
   }

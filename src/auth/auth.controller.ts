@@ -11,6 +11,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { LoginThrottlerGuard } from './guards/login-throttler.guard';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user-dto';
 import { LoginDto } from './dto/login-dto';
@@ -185,6 +187,11 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(LoginThrottlerGuard)
+  @Throttle({
+    'login-short': { ttl: 60_000, limit: 3 },
+    'login-long': { ttl: 300_000, limit: 10 },
+  })
   @ApiOperation({ summary: 'Iniciar sesión y obtener JWT' })
   @ApiResponse({ status: 200, description: 'Iniciar sesión y obtener JWT' })
   @ApiResponse({
