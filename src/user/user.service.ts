@@ -12,6 +12,7 @@ import { UpdateUserDto } from './dto/update-user-dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
+import { RedisService } from '../redis/redis.service';
 import * as bcrypt from 'bcrypt';
 import { Prisma, TruckStatus } from '@prisma/client';
 import { UserRole } from '@prisma/client';
@@ -30,7 +31,10 @@ export interface UserListItem {
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async findByRoles(
     requesterId: number,
@@ -260,24 +264,29 @@ export class UserService {
   async adminUpdateUser(id: number, dto: AdminUpdateUserDto) {
     const user = await this.findOne(id);
 
-    // No permitir editar usuarios ADMIN
-    if (user.role === 'ADMIN') {
+    if (user.role === UserRole.ADMIN) {
       throw new ForbiddenException(
         'No se puede editar a un usuario administrador',
       );
     }
 
     const data: Prisma.UserUpdateInput = { ...dto };
+    const passwordChanged = 'password' in dto && !!dto.password;
 
-    // Si se actualiza el password, lo hasheamos
-    if ('password' in dto && dto.password) {
-      data.password = await bcrypt.hash(dto.password, 10);
+    if (passwordChanged) {
+      data.password = await bcrypt.hash(dto.password as string, 10);
     }
 
-    return this.prisma.user.update({
+    await this.prisma.user.update({
       where: { id },
       data,
     });
+
+    if (passwordChanged) {
+      await this.markUserTokensAsInvalidBefore(id);
+    }
+
+    return { message: 'Usuario actualizado correctamente' };
   }
 
   async findWithTrucks(id: number) {
@@ -319,6 +328,7 @@ export class UserService {
       where: { id: userId },
       data: { password: hashedPassword },
     });
+    await this.markUserTokensAsInvalidBefore(userId);
 
     return { message: 'Contraseña actualizada correctamente' };
   }
@@ -331,7 +341,18 @@ export class UserService {
       where: { id },
       data: { password: hashedPassword },
     });
+    await this.markUserTokensAsInvalidBefore(id);
 
     return { message: 'Contraseña actualizada por el administrador' };
+  }
+
+  private async markUserTokensAsInvalidBefore(userId: number) {
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    const jwtMaxLifetimeSeconds = 86400; // matches JWT expiresIn: '1d'
+    await this.redisService.set(
+      `auth:password-reset-after:${userId}`,
+      String(nowInSeconds),
+      jwtMaxLifetimeSeconds,
+    );
   }
 }

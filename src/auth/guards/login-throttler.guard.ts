@@ -3,6 +3,15 @@ import { ThrottlerGuard, ThrottlerLimitDetail } from '@nestjs/throttler';
 
 @Injectable()
 export class LoginThrottlerGuard extends ThrottlerGuard {
+  protected async getTracker(req: Record<string, any>): Promise<string> {
+    const rawEmail = req?.body?.email;
+    const email =
+      typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : 'unknown-email';
+    const ip = req?.ip ?? req?.ips?.[0] ?? 'unknown-ip';
+
+    return `${ip}:${email}`;
+  }
+
   protected async throwThrottlingException(
     _context: ExecutionContext,
     throttlerLimitDetail: ThrottlerLimitDetail,

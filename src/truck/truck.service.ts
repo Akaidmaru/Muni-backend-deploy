@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
 import { AssignUserDto } from './dto/assign-user.dto';
-import { PlateChangeReason, TruckStatus, UserRole } from '@prisma/client';
+import { Prisma, PlateChangeReason, TruckStatus, UserRole } from '@prisma/client';
 import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
 
 @Injectable()
@@ -105,12 +105,22 @@ export class TruckService {
       throw new BadRequestException('El usuario ya está asignado a este camión');
     }
 
-    return this.prisma.truckAssignment.create({
-      data: {
-        userId: dto.userId,
-        truckId: dto.truckId,
-      },
-    });
+    try {
+      return await this.prisma.truckAssignment.create({
+        data: {
+          userId: dto.userId,
+          truckId: dto.truckId,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('El usuario ya está asignado a este camión');
+      }
+      throw error;
+    }
   }
 
   async getUsersOfTruck(truckId: number) {

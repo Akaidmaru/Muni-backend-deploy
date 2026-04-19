@@ -6,6 +6,7 @@ import { Request } from 'express';
 
 export interface JwtPayload {
   sub: number;
+  iat?: number;
 }
 
 @Injectable()
@@ -34,6 +35,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
       if (isBlacklisted) {
         throw new UnauthorizedException('Token inválido');
+      }
+    }
+
+    const passwordResetAfterRaw = await this.redisService.get(
+      `auth:password-reset-after:${payload.sub}`,
+    );
+    if (passwordResetAfterRaw) {
+      const passwordResetAfter = Number(passwordResetAfterRaw);
+      if (
+        Number.isFinite(passwordResetAfter) &&
+        (!payload.iat || payload.iat < passwordResetAfter)
+      ) {
+        throw new UnauthorizedException('Token expirado por cambio de contraseña');
       }
     }
 

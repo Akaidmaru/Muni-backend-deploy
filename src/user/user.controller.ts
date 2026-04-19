@@ -9,6 +9,7 @@ import {
   Req,
   Query,
   BadRequestException,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -272,7 +273,7 @@ export class UserController {
     },
   })
   adminResetPassword(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body('newPassword') newPassword: string,
   ) {
     if (!newPassword || newPassword.length < 6) {
@@ -281,7 +282,7 @@ export class UserController {
       );
     }
 
-    return this.userService.adminResetPassword(Number(id), newPassword) as Promise<{
+    return this.userService.adminResetPassword(id, newPassword) as Promise<{
       message: string;
     }>;
   }

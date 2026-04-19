@@ -15,6 +15,7 @@ import { LoginDto } from './dto/login-dto';
 import { UpdateVerificationEmailDto } from './dto/update-verification-email.dto';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { MailService } from '../common/mail.service';
 
 interface JwtPayloadWithExp {
@@ -355,7 +356,9 @@ export class AuthService {
     }
 
     if (user.role === UserRole.PENDING_APPROVAL) {
-      throw new UnauthorizedException('Cuenta pendiente de aprobación por un administrador');
+      throw new UnauthorizedException(
+        'Cuenta pendiente de aprobación por un administrador',
+      );
     }
     const payload = { sub: user.id };
     const accessToken = this.jwtService.sign(payload);
@@ -412,6 +415,8 @@ export class AuthService {
   }
 
   async forgotPassword(email: string): Promise<{ message: string }> {
+    await this.enforceForgotPasswordRateLimit(email);
+
     const user = await this.prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
       select: { id: true, email: true },
@@ -419,24 +424,41 @@ export class AuthService {
 
     // Siempre responder igual para no revelar si el email existe
     if (!user) {
-      return { message: 'Si el correo existe, recibirás un enlace para restablecer tu contraseña.' };
+      return {
+        message:
+          'Si el correo existe, recibirás un enlace para restablecer tu contraseña.',
+      };
     }
 
     const token = randomUUID();
     const ttl = 3600; // 1 hora
-    await this.redisService.set(`reset-password:${token}`, String(user.id), ttl);
+    const tokenHash = this.hashResetToken(token);
+    await this.redisService.set(
+      `reset-password:${tokenHash}`,
+      String(user.id),
+      ttl,
+    );
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     const resetUrl = `${frontendUrl}/restablecer-contrasena?token=${token}`;
     await this.mailService.sendPasswordResetEmail(user.email, resetUrl);
 
-    return { message: 'Si el correo existe, recibirás un enlace para restablecer tu contraseña.' };
+    return {
+      message:
+        'Si el correo existe, recibirás un enlace para restablecer tu contraseña.',
+    };
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
-    const userId = await this.redisService.get(`reset-password:${token}`);
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    const tokenHash = this.hashResetToken(token);
+    const userId = await this.redisService.get(`reset-password:${tokenHash}`);
     if (!userId) {
-      throw new UnauthorizedException('El enlace de restablecimiento es inválido o ha expirado.');
+      throw new UnauthorizedException(
+        'El enlace de restablecimiento es inválido o ha expirado.',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -445,8 +467,38 @@ export class AuthService {
       data: { password: hashedPassword },
     });
 
-    await this.redisService.del(`reset-password:${token}`);
+    await this.redisService.del(`reset-password:${tokenHash}`);
+    await this.markUserTokensAsInvalidBefore(Number(userId));
     return { message: 'Contraseña actualizada correctamente.' };
+  }
+
+  private hashResetToken(token: string) {
+    return createHash('sha256').update(token.trim()).digest('hex');
+  }
+
+  private async enforceForgotPasswordRateLimit(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const key = `rate-limit:forgot-password:${normalizedEmail}`;
+    const isLimited = await this.redisService.exists(key);
+
+    if (isLimited) {
+      throw new HttpException(
+        `Demasiadas solicitudes. Intente nuevamente en ${this.verificationRateLimitSeconds} segundos.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    await this.redisService.set(key, '1', this.verificationRateLimitSeconds);
+  }
+
+  private async markUserTokensAsInvalidBefore(userId: number) {
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    const jwtMaxLifetimeSeconds = 86400; // matches JWT expiresIn: '1d'
+    await this.redisService.set(
+      `auth:password-reset-after:${userId}`,
+      String(nowInSeconds),
+      jwtMaxLifetimeSeconds,
+    );
   }
 
   private hasExpClaim(payload: unknown): payload is JwtPayloadWithExp {

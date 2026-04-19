@@ -320,9 +320,7 @@ export class ReportService {
       },
     });
 
-    return timeline.filter((entry) =>
-      this.isWithinNotificationWindow(entry.createdAt),
-    );
+    return timeline;
   }
 
   async respondToReport(
@@ -344,7 +342,7 @@ export class ReportService {
       throw new NotFoundException('Reporte no encontrado');
     }
 
-    const normalizedNote = dto.note && dto.note.length > 0 ? dto.note : null;
+    const normalizedNote = dto.note?.trim() || null;
     const nextStatus = dto.status ?? existing.status;
 
     if (nextStatus === existing.status && !normalizedNote) {
