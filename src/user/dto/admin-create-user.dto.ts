@@ -16,6 +16,11 @@ export class AdminCreateUserDto {
   @IsNotEmpty({ message: 'El email es requerido' })
   email: string;
 
+  @ApiProperty({ example: '12.345.678-9', description: 'RUT del usuario' })
+  @IsString({ message: 'El RUT debe ser texto' })
+  @IsNotEmpty({ message: 'El RUT es requerido' })
+  rut: string;
+
   @ApiPropertyOptional({
     example: '+573001234567',
     description: 'Teléfono del usuario',
@@ -47,6 +52,9 @@ export class AdminCreateUserDto {
     description: 'Rol del usuario',
   })
   @IsOptional()
-  @IsEnum(UserRole, { message: 'El rol debe ser EMPLOYEE, DRIVER o ADMIN' })
+  @IsEnum(UserRole, {
+    message:
+      'El rol debe ser PENDING_APPROVAL, EMPLOYEE, DRIVER o ADMIN',
+  })
   role?: UserRole;
 }

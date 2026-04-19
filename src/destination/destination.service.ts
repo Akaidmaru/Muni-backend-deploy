@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -8,28 +7,64 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDestinationDto } from './dto/create-destination.dto';
 import { UpdateDestinationDto } from './dto/update-destination.dto';
 
-export type PatientResponse = {
-  id: number;
-  name: string;
-};
-
 export type DestinationResponse = {
   id: number;
   name: string;
   active: boolean;
-  patients: PatientResponse[];
+  tripsCount?: number;
+  lastTripDate?: string | null;
+  status?: 'En transcurso' | 'Completado' | null;
 };
 
 @Injectable()
 export class DestinationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private normalizePatientNames(patients: string[]): string[] {
-    const normalized = patients
-      .map((name) => name.trim())
-      .filter((name) => name.length > 0);
+  /**
+   * Enriquece un destino con información de viajes asociados
+   */
+  private async enrichDestinationWithTripsInfo(
+    destination: DestinationResponse,
+  ): Promise<DestinationResponse> {
+    // Obtener todos los viajes para este destino
+    const trips = await this.prisma.tripHistory.findMany({
+      where: { destinationId: destination.id },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+      },
+      orderBy: { date: 'desc' },
+    });
 
-    return [...new Set(normalized)];
+    // Contar total de viajes
+    const tripsCount = trips.length;
+
+    // Determinar el estado: hay viajes en transcurso?
+    const hasActiveTrips = trips.some(
+      (trip) => trip.status === 'DRIVER_FILLING' || trip.status === 'EMPLOYEE_SIGNED',
+    );
+
+    // Obtener el último viaje (date más reciente)
+    const lastTrip = trips.length > 0 ? trips[0] : null;
+    const lastTripDate = lastTrip
+      ? lastTrip.date.toISOString().split('T')[0]
+      : null;
+
+    // Calcular estado
+    let calculatedStatus: 'En transcurso' | 'Completado' | null = null;
+    if (hasActiveTrips) {
+      calculatedStatus = 'En transcurso';
+    } else if (tripsCount > 0) {
+      calculatedStatus = 'Completado';
+    }
+
+    return {
+      ...destination,
+      tripsCount: tripsCount > 0 ? tripsCount : undefined,
+      lastTripDate: lastTripDate || null,
+      status: calculatedStatus,
+    };
   }
 
   private get destinationSelect() {
@@ -37,15 +72,6 @@ export class DestinationService {
       id: true,
       name: true,
       active: true,
-      patients: {
-        select: {
-          id: true,
-          name: true,
-        },
-        orderBy: {
-          name: 'asc' as const,
-        },
-      },
     };
   }
 
@@ -58,33 +84,24 @@ export class DestinationService {
       throw new ConflictException(`El destino "${data.name}" ya existe`);
     }
 
-    const patientNames = this.normalizePatientNames(data.patients);
-
-    if (patientNames.length === 0) {
-      throw new BadRequestException(
-        'Debe enviar al menos un paciente con nombre válido',
-      );
-    }
-
     const destination = await this.prisma.destination.create({
       data: {
         name: data.name,
-        active: data.active,
-        patients: {
-          create: patientNames.map((name) => ({ name })),
-        },
+        active: data.active ?? true,
       },
       select: this.destinationSelect,
     });
 
-    return destination as DestinationResponse;
+    return await this.enrichDestinationWithTripsInfo(
+      destination as DestinationResponse,
+    );
   }
 
   async findOrCreateActiveByName(name: string): Promise<DestinationResponse> {
     const normalizedName = name.trim();
 
     if (normalizedName.length < 2 || normalizedName.length > 120) {
-      throw new BadRequestException(
+      throw new ConflictException(
         'El nombre del destino debe tener entre 2 y 120 caracteres',
       );
     }
@@ -107,10 +124,14 @@ export class DestinationService {
           select: this.destinationSelect,
         });
 
-        return updatedDestination as DestinationResponse;
+        return await this.enrichDestinationWithTripsInfo(
+          updatedDestination as DestinationResponse,
+        );
       }
 
-      return existing as DestinationResponse;
+      return await this.enrichDestinationWithTripsInfo(
+        existing as DestinationResponse,
+      );
     }
 
     const destination = await this.prisma.destination.create({
@@ -121,7 +142,9 @@ export class DestinationService {
       select: this.destinationSelect,
     });
 
-    return destination as DestinationResponse;
+    return await this.enrichDestinationWithTripsInfo(
+      destination as DestinationResponse,
+    );
   }
 
   async findAll(): Promise<DestinationResponse[]> {
@@ -130,7 +153,13 @@ export class DestinationService {
       select: this.destinationSelect,
     });
 
-    return destinations as DestinationResponse[];
+    const enrichedDestinations = await Promise.all(
+      (destinations as DestinationResponse[]).map((dest) =>
+        this.enrichDestinationWithTripsInfo(dest),
+      ),
+    );
+
+    return enrichedDestinations;
   }
 
   async findAllActive(): Promise<DestinationResponse[]> {
@@ -140,7 +169,13 @@ export class DestinationService {
       select: this.destinationSelect,
     });
 
-    return destinations as DestinationResponse[];
+    const enrichedDestinations = await Promise.all(
+      (destinations as DestinationResponse[]).map((dest) =>
+        this.enrichDestinationWithTripsInfo(dest),
+      ),
+    );
+
+    return enrichedDestinations;
   }
 
   async findOne(id: number): Promise<DestinationResponse> {
@@ -153,7 +188,9 @@ export class DestinationService {
       throw new NotFoundException(`Destino con ID ${id} no encontrado`);
     }
 
-    return destination as DestinationResponse;
+    return await this.enrichDestinationWithTripsInfo(
+      destination as DestinationResponse,
+    );
   }
 
   async update(
@@ -178,10 +215,6 @@ export class DestinationService {
     const updateData: {
       name?: string;
       active?: boolean;
-      patients?: {
-        deleteMany: Record<string, never>;
-        create: { name: string }[];
-      };
     } = {};
 
     if (data.name !== undefined) {
@@ -192,28 +225,15 @@ export class DestinationService {
       updateData.active = data.active;
     }
 
-    if (data.patients !== undefined) {
-      const patientNames = this.normalizePatientNames(data.patients);
-
-      if (patientNames.length === 0) {
-        throw new BadRequestException(
-          'Debe enviar al menos un paciente con nombre válido',
-        );
-      }
-
-      updateData.patients = {
-        deleteMany: {},
-        create: patientNames.map((name) => ({ name })),
-      };
-    }
-
     const destination = await this.prisma.destination.update({
       where: { id },
       data: updateData,
       select: this.destinationSelect,
     });
 
-    return destination as DestinationResponse;
+    return await this.enrichDestinationWithTripsInfo(
+      destination as DestinationResponse,
+    );
   }
 
   async remove(id: number): Promise<DestinationResponse> {

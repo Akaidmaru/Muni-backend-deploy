@@ -11,6 +11,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { LoginThrottlerGuard } from './guards/login-throttler.guard';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user-dto';
 import { LoginDto } from './dto/login-dto';
@@ -18,6 +20,8 @@ import { SendVerificationCodeDto } from './dto/send-verification-code.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { CheckVerificationStatusDto } from './dto/check-verification-status.dto';
 import { UpdateVerificationEmailDto } from './dto/update-verification-email.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import type { Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -28,6 +32,7 @@ interface AuthenticatedRequest extends Request {
 interface CurrentUserResponse {
   id: number;
   email: string;
+  rut: string;
   name: string | null;
   role: string;
 }
@@ -76,6 +81,7 @@ export class AuthController {
     schema: {
       example: {
         email: 'ejemplo@email.com',
+        rut: '12.345.678-9',
         name: 'Ejemplo Nombre',
         phone: '+573001234567',
         password: 'contraseña123',
@@ -91,6 +97,7 @@ export class AuthController {
         value: {
           id: 1,
           email: 'nuevo@email.com',
+          rut: '12.345.678-9',
           name: 'Nuevo Usuario',
           phone: '+573001112233',
         },
@@ -182,6 +189,11 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(LoginThrottlerGuard)
+  @Throttle({
+    'login-short': { ttl: 60_000, limit: 3 },
+    'login-long': { ttl: 300_000, limit: 10 },
+  })
   @ApiOperation({ summary: 'Iniciar sesión y obtener JWT' })
   @ApiResponse({ status: 200, description: 'Iniciar sesión y obtener JWT' })
   @ApiResponse({
@@ -222,6 +234,7 @@ export class AuthController {
         value: {
           id: 1,
           email: 'usuario@email.com',
+          rut: '12.345.678-9',
           name: 'Usuario',
           role: 'DRIVER',
         },
@@ -236,6 +249,20 @@ export class AuthController {
       throw new UnauthorizedException('Usuario no encontrado en token');
     }
     return await this.authService.getCurrentUser(userId);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(LoginThrottlerGuard)
+  @Throttle({ 'login-short': { ttl: 60_000, limit: 3 } })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
   @Post('logout')

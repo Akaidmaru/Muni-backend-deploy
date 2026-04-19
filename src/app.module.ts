@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { UserModule } from './user/user.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -9,10 +10,16 @@ import { OccupationModule } from './occupation/occupation.module';
 import { DestinationModule } from './destination/destination.module';
 import { ReportModule } from './report/report.module';
 import { TripHistoryModule } from './trip-history/trip-history.module';
-import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/vehicle-maintenance-record.module';
+import { DailyMaintenanceRecordModule } from './daily-maintenance-record/daily-maintenance-record.module';
+import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/monthly-maintenance-record.module';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 60 },
+      { name: 'login-short', ttl: 60_000, limit: 3 },
+      { name: 'login-long', ttl: 300_000, limit: 10 },
+    ]),
     RedisModule,
     UserModule,
     PrismaModule,
@@ -23,7 +30,8 @@ import { VehicleMaintenanceRecordModule } from './vehicle-maintenance-record/veh
     DestinationModule,
     ReportModule,
     TripHistoryModule,
-    VehicleMaintenanceRecordModule,
+    DailyMaintenanceRecordModule,
+    MonthlyMaintenanceRecordModule,
   ],
   controllers: [],
   providers: [],
