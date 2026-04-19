@@ -14,7 +14,6 @@ import type { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
 import { CreateTripHistoryPointsDto } from './dto/create-trip-history-points.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
@@ -39,7 +38,6 @@ export class TripHistoryController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('name') name?: string,
-    @Query('patient') patient?: string,
     @Query('license') license?: string,
   ): Promise<unknown> {
     const parsedPage = Number(page) || 1;
@@ -51,7 +49,6 @@ export class TripHistoryController {
       from,
       to,
       name,
-      patient,
       license,
     });
 
@@ -66,7 +63,6 @@ export class TripHistoryController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('name') name?: string,
-    @Query('patient') patient?: string,
     @Query('license') license?: string,
   ): Promise<unknown> {
     const parsedPage = Number(page) || 1;
@@ -79,7 +75,6 @@ export class TripHistoryController {
         from,
         to,
         name,
-        patient,
         license,
       });
     return tripHistories;
@@ -128,20 +123,6 @@ export class TripHistoryController {
     @Body() dto: FinishTripDto,
   ): Promise<unknown> {
     const tripHistory: unknown = await this.tripHistoryService.finishTrip(
-      req.user.id,
-      id,
-      dto,
-    );
-    return tripHistory;
-  }
-
-  @Patch(':id/patient')
-  async assignPatient(
-    @Req() req: AuthenticatedRequest,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: AssignTripPatientDto,
-  ): Promise<unknown> {
-    const tripHistory: unknown = await this.tripHistoryService.assignPatient(
       req.user.id,
       id,
       dto,

@@ -790,7 +790,7 @@ export class AiChatService {
     executedQueries: Array<{ query: QueryPlanItem; result: unknown }>;
   }> {
     const limit = Math.min(Math.max(limitHint, 1), MAX_LIMIT_PER_QUERY);
-    const records = await this.prisma.vehicleMaintenanceRecord.findMany({
+    const records = await this.prisma.dailyMaintenanceRecord.findMany({
       orderBy: { inspectionDate: 'desc' },
       take: limit,
       select: {
@@ -852,7 +852,6 @@ export class AiChatService {
         active: true,
         _count: {
           select: {
-            patients: true,
             tripHistories: true,
           },
         },
@@ -1938,10 +1937,10 @@ Respuesta: {"intent":"camiones asignados a usuarios conductores","queries":[{"en
       users: this.prisma.user,
       trucks: this.prisma.truck,
       destinations: this.prisma.destination,
-      patients: this.prisma.patient,
+      patients: this.prisma.destination,
       tripHistories: this.prisma.tripHistory,
-      vehicleMaintenanceRecords: this.prisma.vehicleMaintenanceRecord,
-      maintenanceItems: this.prisma.maintenanceItem,
+      vehicleMaintenanceRecords: this.prisma.dailyMaintenanceRecord,
+      maintenanceItems: this.prisma.dailyMaintenanceItem,
       problemReports: this.prisma.problemReport,
       occupations: this.prisma.occupation,
       truckPlateChangeLogs: this.prisma.truckPlateChangeLog,

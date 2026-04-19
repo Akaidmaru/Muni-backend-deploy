@@ -17,6 +17,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateProblemReportDto } from './dto/create-problem-report.dto';
+import { RespondProblemReportDto } from './dto/respond-problem-report.dto';
 import { UpdateProblemReportStatusDto } from './dto/update-problem-report-status.dto';
 import { ReportService } from './report.service';
 
@@ -71,13 +72,38 @@ export class ReportController {
     return this.reportService.findAll();
   }
 
+  @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<unknown> {
+    return this.reportService.findOne(id);
+  }
+
+  @Get(':id/history')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async findTimeline(@Param('id', ParseIntPipe) id: number): Promise<unknown> {
+    return this.reportService.findTimeline(id);
+  }
+
+  @Patch(':id/respond')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async respondToReport(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RespondProblemReportDto,
+  ): Promise<unknown> {
+    return this.reportService.respondToReport(id, req.user.id, dto);
+  }
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   async updateStatus(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateProblemReportStatusDto,
   ): Promise<unknown> {
-    return this.reportService.updateStatus(id, dto.status);
+    return this.reportService.updateStatus(id, req.user.id, dto.status);
   }
 }

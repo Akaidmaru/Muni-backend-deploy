@@ -3,14 +3,15 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  CreateVehicleMaintenanceRecordDto,
-  UpdateVehicleMaintenanceRecordDto,
+  CreateDailyMaintenanceRecordDto,
+  UpdateDailyMaintenanceRecordDto,
 } from './dto';
 
 @Injectable()
-export class VehicleMaintenanceRecordService {
+export class DailyMaintenanceRecordService {
   constructor(private readonly prisma: PrismaService) {}
 
   private getUtcDayRange(date: Date) {
@@ -27,7 +28,7 @@ export class VehicleMaintenanceRecordService {
    * Crear nuevo registro de mantenimiento.
    * Si currentMileage difiere de truck.mileage, actualiza el truck.
    */
-  async create(dto: CreateVehicleMaintenanceRecordDto): Promise<{
+  async create(dto: CreateDailyMaintenanceRecordDto): Promise<{
     id: number;
     truckId: number;
     driverId: number;
@@ -55,7 +56,7 @@ export class VehicleMaintenanceRecordService {
     }
 
     // Verificar que no exista ya un registro para este truck/driver/día
-    const existingRecord = await this.prisma.vehicleMaintenanceRecord.findFirst(
+    const existingRecord = await this.prisma.dailyMaintenanceRecord.findFirst(
       {
         where: {
           driverId: dto.driverId,
@@ -74,8 +75,8 @@ export class VehicleMaintenanceRecordService {
       );
     }
 
-    // Separar maintenanceItems del DTO
-    const { maintenanceItems, ...recordData } = dto;
+    // Separar dailyMaintenanceItems del DTO
+    const { dailyMaintenanceItems, ...recordData } = dto;
 
     // Si currentMileage es 0 (default), usar el del truck
     const currentMileage =
@@ -84,16 +85,16 @@ export class VehicleMaintenanceRecordService {
         : recordData.currentMileage;
 
     return this.prisma.$transaction(async (tx) => {
-      const record = await tx.vehicleMaintenanceRecord.create({
+      const record = await tx.dailyMaintenanceRecord.create({
         data: {
           ...recordData,
           currentMileage,
-          maintenanceItems: {
-            create: maintenanceItems,
+          dailyMaintenanceItems: {
+            create: dailyMaintenanceItems,
           },
         },
         include: {
-          maintenanceItems: true,
+          dailyMaintenanceItems: true,
         },
       });
 
@@ -118,7 +119,7 @@ export class VehicleMaintenanceRecordService {
    * Obtener todos los registros de mantenimiento
    */
   async findAll() {
-    return await this.prisma.vehicleMaintenanceRecord.findMany({
+    return await this.prisma.dailyMaintenanceRecord.findMany({
       include: {
         truck: {
           select: {
@@ -141,7 +142,7 @@ export class VehicleMaintenanceRecordService {
             email: true,
           },
         },
-        maintenanceItems: true,
+        dailyMaintenanceItems: true,
       },
       orderBy: {
         inspectionDate: 'desc',
@@ -153,7 +154,7 @@ export class VehicleMaintenanceRecordService {
    * Obtener un registro por ID
    */
   async findOne(id: number) {
-    const record = await this.prisma.vehicleMaintenanceRecord.findUnique({
+    const record = await this.prisma.dailyMaintenanceRecord.findUnique({
       where: { id },
       include: {
         truck: {
@@ -178,7 +179,7 @@ export class VehicleMaintenanceRecordService {
             email: true,
           },
         },
-        maintenanceItems: true,
+        dailyMaintenanceItems: true,
       },
     });
 
@@ -196,7 +197,7 @@ export class VehicleMaintenanceRecordService {
    */
   async findByTruckAndDate(truckId: number, inspectionDate: Date) {
     const { startOfDay, endOfDay } = this.getUtcDayRange(inspectionDate);
-    const records = await this.prisma.vehicleMaintenanceRecord.findMany({
+    const records = await this.prisma.dailyMaintenanceRecord.findMany({
       where: {
         truckId,
         inspectionDate: { gte: startOfDay, lte: endOfDay },
@@ -223,7 +224,7 @@ export class VehicleMaintenanceRecordService {
             email: true,
           },
         },
-        maintenanceItems: true,
+        dailyMaintenanceItems: true,
       },
     });
 
@@ -236,7 +237,7 @@ export class VehicleMaintenanceRecordService {
   async findByDriverAndDate(driverId: number, inspectionDate: Date) {
     const { startOfDay, endOfDay } = this.getUtcDayRange(inspectionDate);
 
-    return await this.prisma.vehicleMaintenanceRecord.findFirst({
+    return await this.prisma.dailyMaintenanceRecord.findFirst({
       where: {
         driverId,
         inspectionDate: {
@@ -267,7 +268,7 @@ export class VehicleMaintenanceRecordService {
             email: true,
           },
         },
-        maintenanceItems: true,
+        dailyMaintenanceItems: true,
       },
     });
   }
@@ -282,7 +283,7 @@ export class VehicleMaintenanceRecordService {
   ) {
     const { startOfDay, endOfDay } = this.getUtcDayRange(inspectionDate);
 
-    return await this.prisma.vehicleMaintenanceRecord.findFirst({
+    return await this.prisma.dailyMaintenanceRecord.findFirst({
       where: {
         driverId,
         truckId,
@@ -314,7 +315,7 @@ export class VehicleMaintenanceRecordService {
             email: true,
           },
         },
-        maintenanceItems: true,
+        dailyMaintenanceItems: true,
       },
     });
   }
@@ -323,7 +324,7 @@ export class VehicleMaintenanceRecordService {
    * Obtener registros por truck
    */
   async findByTruck(truckId: number) {
-    return await this.prisma.vehicleMaintenanceRecord.findMany({
+    return await this.prisma.dailyMaintenanceRecord.findMany({
       where: { truckId },
       include: {
         truck: {
@@ -347,7 +348,7 @@ export class VehicleMaintenanceRecordService {
             email: true,
           },
         },
-        maintenanceItems: true,
+        dailyMaintenanceItems: true,
       },
       orderBy: {
         inspectionDate: 'desc',
@@ -358,11 +359,11 @@ export class VehicleMaintenanceRecordService {
   /**
    * Actualizar un registro de mantenimiento
    */
-  async update(id: number, dto: UpdateVehicleMaintenanceRecordDto) {
+  async update(id: number, dto: UpdateDailyMaintenanceRecordDto) {
     // Verificar que el registro existe
-    const existing = await this.prisma.vehicleMaintenanceRecord.findUnique({
+    const existing = await this.prisma.dailyMaintenanceRecord.findUnique({
       where: { id },
-      include: { maintenanceItems: true },
+      include: { dailyMaintenanceItems: true },
     });
 
     if (!existing) {
@@ -371,8 +372,8 @@ export class VehicleMaintenanceRecordService {
       );
     }
 
-    // Separar maintenanceItems del DTO
-    const { maintenanceItems, ...recordData } = dto;
+    // Separar dailyMaintenanceItems del DTO
+    const { dailyMaintenanceItems, ...recordData } = dto;
 
     // Filtrar propiedades undefined y convertir currentMileage a número
     const cleanData = Object.fromEntries(
@@ -386,15 +387,15 @@ export class VehicleMaintenanceRecordService {
         }),
     );
 
-    const updateData: any = cleanData;
+    const updateData = cleanData as Prisma.DailyMaintenanceRecordUpdateInput;
 
     return this.prisma.$transaction(async (tx) => {
-      if (maintenanceItems !== undefined && Array.isArray(maintenanceItems)) {
-        await tx.maintenanceItem.deleteMany({ where: { recordId: id } });
-        updateData.maintenanceItems = { create: maintenanceItems };
+      if (dailyMaintenanceItems !== undefined && Array.isArray(dailyMaintenanceItems)) {
+        await tx.dailyMaintenanceItem.deleteMany({ where: { recordId: id } });
+        updateData.dailyMaintenanceItems = { create: dailyMaintenanceItems };
       }
 
-      const updated = await tx.vehicleMaintenanceRecord.update({
+      const updated = await tx.dailyMaintenanceRecord.update({
         where: { id },
         data: updateData,
         include: {
@@ -419,7 +420,7 @@ export class VehicleMaintenanceRecordService {
               email: true,
             },
           },
-          maintenanceItems: true,
+          dailyMaintenanceItems: true,
         },
       });
 
@@ -443,7 +444,7 @@ export class VehicleMaintenanceRecordService {
    * Eliminar un registro de mantenimiento (cascade elimina items)
    */
   async remove(id: number) {
-    const existing = await this.prisma.vehicleMaintenanceRecord.findUnique({
+    const existing = await this.prisma.dailyMaintenanceRecord.findUnique({
       where: { id },
     });
 
@@ -453,7 +454,7 @@ export class VehicleMaintenanceRecordService {
       );
     }
 
-    return await this.prisma.vehicleMaintenanceRecord.delete({
+    return await this.prisma.dailyMaintenanceRecord.delete({
       where: { id },
     });
   }

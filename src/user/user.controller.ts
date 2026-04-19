@@ -9,6 +9,7 @@ import {
   Req,
   Query,
   BadRequestException,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -252,6 +253,36 @@ export class UserController {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.userService.changePassword(req.user.id, dto) as Promise<{
+      message: string;
+    }>;
+  }
+
+  @Patch(':id/reset-password')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Restablecer contraseña de un usuario (ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Contraseña restablecida correctamente',
+    examples: {
+      success: {
+        summary: 'Contraseña restablecida',
+        value: { message: 'Contraseña actualizada por el administrador' },
+      },
+    },
+  })
+  adminResetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('newPassword') newPassword: string,
+  ) {
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException(
+        'La nueva contraseña debe tener al menos 6 caracteres',
+      );
+    }
+
+    return this.userService.adminResetPassword(id, newPassword) as Promise<{
       message: string;
     }>;
   }

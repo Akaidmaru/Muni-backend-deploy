@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { PrismaExceptionFilter } from './common/prisma-exception.filter';
 
 function isAllowedCorsOrigin(
   origin: string,
@@ -50,6 +51,7 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type,Authorization',
   });
+  app.useGlobalFilters(new PrismaExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Elimina propiedades no definidas en el DTO

@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
 import { AssignUserDto } from './dto/assign-user.dto';
-import { PlateChangeReason, TruckStatus } from '@prisma/client';
+import { Prisma, PlateChangeReason, TruckStatus, UserRole } from '@prisma/client';
 import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
 
 @Injectable()
@@ -15,28 +15,112 @@ export class TruckService {
   }
 
   findAll() {
-    return this.prisma.truck.findMany();
+    return this.prisma.truck.findMany({
+      include: {
+        users: {
+          where: {
+            user: {
+              role: UserRole.DRIVER,
+            },
+          },
+          select: {
+            userId: true,
+            truckId: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
-  findOne(id: number) {
-    return this.prisma.truck.findUnique({ where: { id } });
+  async findOne(id: number) {
+    const truck = await this.prisma.truck.findUnique({
+      where: { id },
+      include: {
+        users: {
+          where: {
+            user: {
+              role: UserRole.DRIVER,
+            },
+          },
+          select: {
+            userId: true,
+            truckId: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!truck) {
+      throw new NotFoundException(`Camión con ID ${id} no encontrado`);
+    }
+
+    return truck;
   }
 
-  update(id: number, dto: UpdateTruckDto) {
+  async update(id: number, dto: UpdateTruckDto) {
+    await this.findOne(id);
     return this.prisma.truck.update({ where: { id }, data: dto });
   }
 
-  remove(id: number) {
+  async remove(id: number) {
+    await this.findOne(id);
     return this.prisma.truck.delete({ where: { id } });
   }
 
-  assignUser(dto: AssignUserDto) {
-    return this.prisma.truckAssignment.create({
-      data: {
-        userId: dto.userId,
-        truckId: dto.truckId,
-      },
+  async assignUser(dto: AssignUserDto) {
+    const [truck, user] = await Promise.all([
+      this.prisma.truck.findUnique({ where: { id: dto.truckId }, select: { id: true } }),
+      this.prisma.user.findUnique({ where: { id: dto.userId }, select: { id: true } }),
+    ]);
+
+    if (!truck) {
+      throw new NotFoundException(`Camión con ID ${dto.truckId} no encontrado`);
+    }
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${dto.userId} no encontrado`);
+    }
+
+    const existing = await this.prisma.truckAssignment.findUnique({
+      where: { userId_truckId: { userId: dto.userId, truckId: dto.truckId } },
     });
+
+    if (existing) {
+      throw new BadRequestException('El usuario ya está asignado a este camión');
+    }
+
+    try {
+      return await this.prisma.truckAssignment.create({
+        data: {
+          userId: dto.userId,
+          truckId: dto.truckId,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('El usuario ya está asignado a este camión');
+      }
+      throw error;
+    }
   }
 
   async getUsersOfTruck(truckId: number) {

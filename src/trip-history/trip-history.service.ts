@@ -16,7 +16,6 @@ import { RedisService } from '../redis/redis.service';
 import { DestinationService } from '../destination/destination.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleRoadsService } from '../route/googleRoads.service';
-import { AssignTripPatientDto } from './dto/assign-trip-patient.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
 import { CreateTripHistoryPointsDto } from './dto/create-trip-history-points.dto';
@@ -28,7 +27,6 @@ type FindAllOptions = {
   from?: string;
   to?: string;
   name?: string;
-  patient?: string;
   license?: string;
 };
 
@@ -112,17 +110,6 @@ export class TripHistoryService {
       });
     }
 
-    if (options.patient) {
-      whereAnd.push({
-        patient: {
-          name: {
-            contains: options.patient,
-            mode: 'insensitive',
-          },
-        },
-      });
-    }
-
     if (options.from || options.to) {
       const dateFilter: Prisma.DateTimeFilter = {};
 
@@ -184,15 +171,6 @@ export class TripHistoryService {
           select: {
             id: true,
             name: true,
-            patients: {
-              select: {
-                id: true,
-                name: true,
-              },
-              orderBy: {
-                name: 'asc',
-              },
-            },
           },
         },
         employee: {
@@ -200,12 +178,6 @@ export class TripHistoryService {
             id: true,
             name: true,
             email: true,
-          },
-        },
-        patient: {
-          select: {
-            id: true,
-            name: true,
           },
         },
       },
@@ -394,13 +366,6 @@ export class TripHistoryService {
         truckId: true,
         destinationId: true,
         employeeId: true,
-        patientId: true,
-        patient: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
       },
     });
   }
@@ -512,11 +477,7 @@ export class TripHistoryService {
     };
   }
 
-  async assignPatient(
-    userId: number,
-    tripHistoryId: number,
-    dto: AssignTripPatientDto,
-  ) {
+  async finishTrip(userId: number, tripHistoryId: number, dto: FinishTripDto) {
     const requester = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
@@ -526,84 +487,10 @@ export class TripHistoryService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    const tripHistory = await this.prisma.tripHistory.findUnique({
-      where: { id: tripHistoryId },
-      select: {
-        id: true,
-        destinationId: true,
-        employeeId: true,
-        status: true,
-      },
-    });
-
-    if (!tripHistory) {
-      throw new NotFoundException('Viaje no encontrado');
+    if (requester.role !== UserRole.DRIVER) {
+      throw new ForbiddenException('Solo el conductor puede finalizar el viaje');
     }
 
-    if (
-      requester.role !== UserRole.ADMIN &&
-      requester.role !== UserRole.EMPLOYEE
-    ) {
-      throw new ForbiddenException('No tiene permisos para asignar pacientes');
-    }
-
-    if (
-      requester.role === UserRole.EMPLOYEE &&
-      tripHistory.employeeId !== userId
-    ) {
-      throw new ForbiddenException(
-        'Solo el funcionario asignado puede registrar el paciente de este viaje',
-      );
-    }
-
-    const patient = await this.prisma.patient.findFirst({
-      where: {
-        id: dto.patientId,
-        destinationId: tripHistory.destinationId,
-      },
-      select: { id: true, name: true },
-    });
-
-    if (!patient) {
-      throw new BadRequestException(
-        'El paciente seleccionado no pertenece al destino del viaje',
-      );
-    }
-
-    if (tripHistory.status !== TripHistoryStatus.COMPLETED) {
-      throw new BadRequestException(
-        'Solo se puede asignar un paciente a un viaje completado',
-      );
-    }
-
-    return this.prisma.tripHistory.update({
-      where: { id: tripHistory.id },
-      data: {
-        patientId: patient.id,
-      },
-      select: {
-        id: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        startKm: true,
-        endKm: true,
-        status: true,
-        truckId: true,
-        destinationId: true,
-        employeeId: true,
-        patientId: true,
-        patient: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
-  }
-
-  async finishTrip(userId: number, tripHistoryId: number, dto: FinishTripDto) {
     const tripHistory = await this.prisma.tripHistory.findUnique({
       where: { id: tripHistoryId },
       select: {
@@ -672,45 +559,43 @@ export class TripHistoryService {
       key: signatureKey,
     });
 
-    return this.prisma.$transaction(async (tx) => {
-      const updatedTrip = await tx.tripHistory.update({
-        where: { id: tripHistory.id },
-        data: {
-          endTime: dto.endTime,
-          endKm,
-          status: TripHistoryStatus.COMPLETED,
-          signatureKey,
-        },
-        select: {
-          id: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          startKm: true,
-          endKm: true,
-          status: true,
-          truckId: true,
-          destinationId: true,
-          employeeId: true,
-          patientId: true,
-          patient: {
-            select: {
-              id: true,
-              name: true,
-            },
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const updatedTrip = await tx.tripHistory.update({
+          where: { id: tripHistory.id },
+          data: {
+            endTime: dto.endTime,
+            endKm,
+            status: TripHistoryStatus.COMPLETED,
+            signatureKey,
           },
-        },
-      });
+          select: {
+            id: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            startKm: true,
+            endKm: true,
+            status: true,
+            truckId: true,
+            destinationId: true,
+            employeeId: true,
+          },
+        });
 
-      await tx.truck.update({
-        where: { id: tripHistory.truckId },
-        data: {
-          mileage: endKm,
-        },
-      });
+        await tx.truck.update({
+          where: { id: tripHistory.truckId },
+          data: {
+            mileage: endKm,
+          },
+        });
 
-      return updatedTrip;
-    });
+        return updatedTrip;
+      });
+    } catch (error) {
+      await this.s3Service.deleteObject(signatureKey);
+      throw error;
+    }
   }
 
   private buildSignatureKey(tripHistoryId: number): string {
@@ -858,12 +743,6 @@ export class TripHistoryService {
             id: true,
             name: true,
             email: true,
-          },
-        },
-        patient: {
-          select: {
-            id: true,
-            name: true,
           },
         },
       },
