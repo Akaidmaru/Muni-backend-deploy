@@ -4,12 +4,11 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { PrismaExceptionFilter } from './common/prisma-exception.filter';
+import { parseCorsOrigins } from './common/cors-origins';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [
-    'http://localhost:5173',
-  ];
+  const allowedOrigins = parseCorsOrigins(process.env.CORS_ORIGIN);
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,

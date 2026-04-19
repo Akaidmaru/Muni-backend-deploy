@@ -13,6 +13,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { parseCorsOrigins } from '../common/cors-origins';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface SocketAuthPayload {
@@ -26,7 +27,7 @@ interface ConnectedUser {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173'],
+    origin: parseCorsOrigins(process.env.CORS_ORIGIN),
     credentials: true,
   },
 })
