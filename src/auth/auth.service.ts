@@ -439,7 +439,9 @@ export class AuthService {
       ttl,
     );
 
-    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    const frontendUrl =
+      (process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim()) ||
+      'http://localhost:5173';
     const resetUrl = `${frontendUrl}/restablecer-contrasena?token=${token}`;
     await this.mailService.sendPasswordResetEmail(user.email, resetUrl);
 
