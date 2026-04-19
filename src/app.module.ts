@@ -10,7 +10,6 @@ import { OccupationModule } from './occupation/occupation.module';
 import { DestinationModule } from './destination/destination.module';
 import { ReportModule } from './report/report.module';
 import { TripHistoryModule } from './trip-history/trip-history.module';
-import { AiChatModule } from './ai-chat/ai-chat.module';
 import { DailyMaintenanceRecordModule } from './daily-maintenance-record/daily-maintenance-record.module';
 import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/monthly-maintenance-record.module';
 
@@ -31,7 +30,6 @@ import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/mon
     DestinationModule,
     ReportModule,
     TripHistoryModule,
-    AiChatModule,
     DailyMaintenanceRecordModule,
     MonthlyMaintenanceRecordModule,
   ],
