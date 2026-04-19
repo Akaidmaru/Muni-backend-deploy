@@ -353,6 +353,10 @@ export class AuthService {
     if (!user.isVerified) {
       throw new UnauthorizedException('Cuenta no verificada');
     }
+
+    if (user.role === UserRole.PENDING_APPROVAL) {
+      throw new UnauthorizedException('Cuenta pendiente de aprobación por un administrador');
+    }
     const payload = { sub: user.id };
     const accessToken = this.jwtService.sign(payload);
 

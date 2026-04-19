@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -90,7 +91,7 @@ export class DailyMaintenanceRecordController {
   ) {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {
-      throw new Error('Formato de fecha inválido');
+      throw new BadRequestException('Formato de fecha inválido');
     }
     return await this.DailyMaintenanceRecordService.findByTruckAndDate(
       truckId,
@@ -114,7 +115,7 @@ export class DailyMaintenanceRecordController {
   ) {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {
-      throw new Error('Formato de fecha inválido');
+      throw new BadRequestException('Formato de fecha inválido');
     }
     return await this.DailyMaintenanceRecordService.findByDriverAndDate(
       driverId,
@@ -140,7 +141,7 @@ export class DailyMaintenanceRecordController {
   ) {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {
-      throw new Error('Formato de fecha inválido');
+      throw new BadRequestException('Formato de fecha inválido');
     }
     return await this.DailyMaintenanceRecordService.findByDriverTruckAndDate(
       driverId,

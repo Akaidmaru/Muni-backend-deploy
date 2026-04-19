@@ -22,6 +22,7 @@ model User {
   tripHistories           TripHistory[]
   dailyMaintenanceRecords DailyMaintenanceRecord[]
   problemReports          ProblemReport[]
+  problemReportTimelines  ProblemReportTimeline[]
   plateChangeLogs         TruckPlateChangeLog[]
   isVerified              Boolean          @default(false)
 }
@@ -208,11 +209,30 @@ model ProblemReport {
   status        ProblemReportStatus @default(OPEN)
   reporterId    Int
   reporter      User               @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  timeline      ProblemReportTimeline[]
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
   @@index([reporterId])
   @@index([status])
+  @@index([createdAt])
+}
+
+model ProblemReportTimeline {
+  id             Int                      @id @default(autoincrement())
+  reportId       Int
+  actorId        Int
+  eventType      ProblemReportEventType
+  previousStatus ProblemReportStatus
+  newStatus      ProblemReportStatus
+  note           String?
+  createdAt      DateTime                 @default(now())
+
+  report         ProblemReport            @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor          User                     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([actorId])
   @@index([createdAt])
 }
 
@@ -243,4 +263,11 @@ enum ProblemReportStatus {
   OPEN
   IN_REVIEW
   RESOLVED
+}
+
+enum ProblemReportEventType {
+  CREATED
+  STATUS_CHANGED
+  NOTE_ADDED
+  NOTE_AND_STATUS_CHANGED
 }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { UserModule } from './user/user.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -14,6 +15,11 @@ import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/mon
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 60 },
+      { name: 'login-short', ttl: 60_000, limit: 3 },
+      { name: 'login-long', ttl: 300_000, limit: 10 },
+    ]),
     RedisModule,
     UserModule,
     PrismaModule,
