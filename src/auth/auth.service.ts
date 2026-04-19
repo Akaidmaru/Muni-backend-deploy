@@ -14,6 +14,7 @@ import { CreateUserDto } from './dto/create-user-dto';
 import { LoginDto } from './dto/login-dto';
 import { UpdateVerificationEmailDto } from './dto/update-verification-email.dto';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { MailService } from '../common/mail.service';
 
 interface JwtPayloadWithExp {
@@ -404,6 +405,44 @@ export class AuthService {
     }
 
     return { message: 'Logout exitoso' };
+  }
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      select: { id: true, email: true },
+    });
+
+    // Siempre responder igual para no revelar si el email existe
+    if (!user) {
+      return { message: 'Si el correo existe, recibirás un enlace para restablecer tu contraseña.' };
+    }
+
+    const token = randomUUID();
+    const ttl = 3600; // 1 hora
+    await this.redisService.set(`reset-password:${token}`, String(user.id), ttl);
+
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    const resetUrl = `${frontendUrl}/restablecer-contrasena?token=${token}`;
+    await this.mailService.sendPasswordResetEmail(user.email, resetUrl);
+
+    return { message: 'Si el correo existe, recibirás un enlace para restablecer tu contraseña.' };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const userId = await this.redisService.get(`reset-password:${token}`);
+    if (!userId) {
+      throw new UnauthorizedException('El enlace de restablecimiento es inválido o ha expirado.');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: Number(userId) },
+      data: { password: hashedPassword },
+    });
+
+    await this.redisService.del(`reset-password:${token}`);
+    return { message: 'Contraseña actualizada correctamente.' };
   }
 
   private hasExpClaim(payload: unknown): payload is JwtPayloadWithExp {

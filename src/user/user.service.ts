@@ -321,4 +321,16 @@ export class UserService {
 
     return { message: 'Contraseña actualizada correctamente' };
   }
+
+  async adminResetPassword(id: number, newPassword: string) {
+    await this.findOne(id);
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id },
+      data: { password: hashedPassword },
+    });
+
+    return { message: 'Contraseña actualizada por el administrador' };
+  }
 }

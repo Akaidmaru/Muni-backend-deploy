@@ -71,6 +71,15 @@ export class ReportController {
     return this.reportService.findAll();
   }
 
+  @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<unknown> {
+    return this.reportService.findOne(id);
+  }
+
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')

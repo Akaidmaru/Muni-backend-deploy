@@ -165,6 +165,38 @@ export class ReportService {
     return this.attachScreenshotUrls(reports);
   }
 
+  async findOne(id: number) {
+    const report = await this.prisma.problemReport.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        screenshotKey: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        reporter: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!report) {
+      throw new NotFoundException('Reporte no encontrado');
+    }
+
+    const screenshotUrl = report.screenshotKey
+      ? await this.s3Service.getSignedGetUrl(report.screenshotKey).catch(() => null)
+      : null;
+
+    return { ...report, screenshotUrl };
+  }
+
   async updateStatus(id: number, status: ProblemReportStatusValue) {
     const existing = await this.prisma.problemReport.findUnique({
       where: { id },

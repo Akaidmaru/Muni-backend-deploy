@@ -256,6 +256,36 @@ export class UserController {
     }>;
   }
 
+  @Patch(':id/reset-password')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Restablecer contraseña de un usuario (ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Contraseña restablecida correctamente',
+    examples: {
+      success: {
+        summary: 'Contraseña restablecida',
+        value: { message: 'Contraseña actualizada por el administrador' },
+      },
+    },
+  })
+  adminResetPassword(
+    @Param('id') id: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException(
+        'La nueva contraseña debe tener al menos 6 caracteres',
+      );
+    }
+
+    return this.userService.adminResetPassword(Number(id), newPassword) as Promise<{
+      message: string;
+    }>;
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Actualizar usuario por administrador' })
