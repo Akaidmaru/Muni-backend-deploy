@@ -69,6 +69,7 @@ export class TruckController {
   }
 
   @Get('unassigned')
+  @Roles('DRIVER', 'ADMIN')
   @ApiOperation({ summary: 'Listar camiones sin asignar a conductores (DRIVER/ADMIN)' })
   @ApiResponse({
     status: 200,

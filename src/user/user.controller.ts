@@ -36,6 +36,8 @@ interface AuthenticatedRequest extends Request {
 @ApiBearerAuth()
 @Controller('users')
 export class UserController {
+  constructor(private readonly userService: UserService) {}
+
   private parseRolesQuery(
     rolesParam?: string | string[],
   ): UserRole[] | undefined {
@@ -167,7 +169,6 @@ export class UserController {
   getTrucksOfUser(@Param('id') id: string) {
     return this.userService.getTrucksOfUser(Number(id));
   }
-  constructor(private readonly userService: UserService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)

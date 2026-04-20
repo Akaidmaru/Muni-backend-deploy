@@ -703,7 +703,7 @@ export class TripHistoryService {
       });
 
       if (!truck) {
-        throw new NotFoundException('Camion no encontrado');
+        throw new NotFoundException('Camión no encontrado');
       }
     }
 
