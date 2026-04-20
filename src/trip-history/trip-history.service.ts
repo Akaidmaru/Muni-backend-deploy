@@ -264,28 +264,12 @@ export class TripHistoryService {
     return this.findWithWhere(whereAnd, pagination);
   }
 
-  async startTrip(userId: number, dto: StartTripDto) {
-    const assignment = await this.prisma.truckAssignment.findFirst({
+  async startTrip(_userId: number, dto: StartTripDto) {
+    const truck = await this.prisma.truck.findFirst({
       where: {
-        userId,
-        truck: {
-          plate: dto.plate,
-          status: TruckStatus.ACTIVE,
-        },
+        plate: dto.plate,
+        status: TruckStatus.ACTIVE,
       },
-      select: {
-        truckId: true,
-      },
-    });
-
-    if (!assignment) {
-      throw new ForbiddenException(
-        'La patente seleccionada no está activa o no está asignada al usuario autenticado',
-      );
-    }
-
-    const truck = await this.prisma.truck.findUnique({
-      where: { id: assignment.truckId },
       select: {
         id: true,
         mileage: true,
@@ -293,7 +277,7 @@ export class TripHistoryService {
     });
 
     if (!truck) {
-      throw new NotFoundException('Camión no encontrado');
+      throw new NotFoundException('La patente seleccionada no está activa');
     }
 
     const customDestinationName = dto.customDestination?.trim();
@@ -441,20 +425,6 @@ export class TripHistoryService {
       throw new BadRequestException('El viaje ya no acepta puntos GPS');
     }
 
-    const hasAccess = await this.prisma.truckAssignment.findFirst({
-      where: {
-        userId,
-        truckId: tripHistory.truckId,
-      },
-      select: { truckId: true },
-    });
-
-    if (!hasAccess) {
-      throw new ForbiddenException(
-        'No tiene permisos para enviar puntos GPS para este viaje',
-      );
-    }
-
     await this.prisma.tripHistoryPoint.createMany({
       data: dto.points.map((point) => ({
         tripHistoryId: tripHistory.id,
@@ -534,20 +504,6 @@ export class TripHistoryService {
 
     if (!tripHistory) {
       throw new NotFoundException('Viaje no encontrado');
-    }
-
-    const hasAccess = await this.prisma.truckAssignment.findFirst({
-      where: {
-        userId,
-        truckId: tripHistory.truckId,
-      },
-      select: { truckId: true },
-    });
-
-    if (!hasAccess) {
-      throw new ForbiddenException(
-        'No tiene permisos para finalizar este viaje',
-      );
     }
 
     if (tripHistory.status !== TripHistoryStatus.DRIVER_FILLING) {

@@ -544,7 +544,15 @@ export class DailyMaintenanceRecordService {
   async getTruckMileageSuggestionByPlate(plate: string) {
     const truck = await this.prisma.truck.findUnique({
       where: { plate },
-      select: { id: true, mileage: true },
+      select: {
+        id: true,
+        plate: true,
+        mileage: true,
+        technicalReviewExpiresAt: true,
+        circulationPermitExpiresAt: true,
+        insuranceExpiresAt: true,
+        emissionsExpiresAt: true,
+      },
     });
 
     if (!truck) {
@@ -554,6 +562,7 @@ export class DailyMaintenanceRecordService {
     return {
       truckId: truck.id,
       suggestedMileage: truck.mileage,
+      truck,
     };
   }
 }
