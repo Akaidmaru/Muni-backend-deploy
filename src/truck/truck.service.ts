@@ -40,6 +40,24 @@ export class TruckService {
     });
   }
 
+  async findUnassigned() {
+    return this.prisma.truck.findMany({
+      where: {
+        users: {
+          none: {
+            user: {
+              role: UserRole.DRIVER,
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        plate: true,
+      },
+    });
+  }
+
   async findOne(id: number) {
     const truck = await this.prisma.truck.findUnique({
       where: { id },
