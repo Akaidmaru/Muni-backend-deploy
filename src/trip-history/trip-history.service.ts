@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
@@ -32,6 +33,7 @@ type PaginationData = {
 
 @Injectable()
 export class TripHistoryService {
+  private readonly logger = new Logger(TripHistoryService.name);
   private readonly signedUrlCacheTtl = 3000; // 50 min (S3 TTL es 60 min)
 
   constructor(
@@ -46,7 +48,10 @@ export class TripHistoryService {
     const cacheKey = `s3:signed-url:${key}`;
     const cached = await this.redisService.get(cacheKey);
     if (cached) return cached;
-    const url = await this.s3Service.getSignedGetUrl(key).catch(() => null);
+    const url = await this.s3Service.getSignedGetUrl(key).catch((err: unknown) => {
+      this.logger.warn(`No se pudo generar URL firmada para ${key}: ${String(err)}`);
+      return null;
+    });
     if (url) await this.redisService.set(cacheKey, url, this.signedUrlCacheTtl);
     return url;
   }
@@ -55,7 +60,10 @@ export class TripHistoryService {
     const cacheKey = `s3:data-url:${key}`;
     const cached = await this.redisService.get(cacheKey);
     if (cached) return cached;
-    const url = await this.s3Service.getObjectDataUrl(key).catch(() => null);
+    const url = await this.s3Service.getObjectDataUrl(key).catch((err: unknown) => {
+      this.logger.warn(`No se pudo generar data URL para ${key}: ${String(err)}`);
+      return null;
+    });
     if (url) await this.redisService.set(cacheKey, url, this.signedUrlCacheTtl);
     return url;
   }
@@ -87,20 +95,10 @@ export class TripHistoryService {
     if (options.name) {
       whereAnd.push({
         employee: {
-          OR: [
-            {
-              name: {
-                contains: options.name,
-                mode: 'insensitive',
-              },
-            },
-            {
-              email: {
-                contains: options.name,
-                mode: 'insensitive',
-              },
-            },
-          ],
+          name: {
+            contains: options.name,
+            mode: 'insensitive',
+          },
         },
       });
     }
@@ -172,7 +170,6 @@ export class TripHistoryService {
           select: {
             id: true,
             name: true,
-            email: true,
           },
         },
       },
@@ -247,11 +244,7 @@ export class TripHistoryService {
     const pagination = this.parsePagination(options);
     const whereAnd = this.buildFilters(options);
 
-    if (requester.role === UserRole.EMPLOYEE) {
-      whereAnd.push({
-        employeeId: userId,
-      });
-    } else if (requester.role !== UserRole.ADMIN) {
+    if (requester.role !== UserRole.ADMIN) {
       whereAnd.push({
         truck: {
           users: {
@@ -316,18 +309,56 @@ export class TripHistoryService {
       throw new NotFoundException('Destino no encontrado');
     }
 
-    const employee = await this.prisma.user.findUnique({
-      where: { id: dto.employeeId },
-      select: { id: true, role: true, name: true, email: true },
-    });
+    const customEmployeeName = dto.customEmployee?.trim();
+    let employee: { id: number; name: string } | null = null;
 
-    if (!employee) {
-      throw new NotFoundException('Funcionario no encontrado');
+    if (customEmployeeName) {
+      const existingEmployee = await this.prisma.employee.findFirst({
+        where: {
+          name: {
+            equals: customEmployeeName,
+            mode: 'insensitive',
+          },
+        },
+        select: { id: true, name: true, active: true },
+      });
+
+      if (existingEmployee) {
+        if (!existingEmployee.active) {
+          const reactivatedEmployee = await this.prisma.employee.update({
+            where: { id: existingEmployee.id },
+            data: { active: true },
+            select: { id: true, name: true },
+          });
+          employee = reactivatedEmployee;
+        } else {
+          employee = { id: existingEmployee.id, name: existingEmployee.name };
+        }
+      } else {
+        employee = await this.prisma.employee.create({
+          data: {
+            name: customEmployeeName,
+            active: true,
+          },
+          select: { id: true, name: true },
+        });
+      }
+    } else if (dto.employeeId) {
+      const selectedEmployee = await this.prisma.employee.findUnique({
+        where: { id: dto.employeeId },
+        select: { id: true, name: true, active: true },
+      });
+
+      if (!selectedEmployee || !selectedEmployee.active) {
+        throw new NotFoundException('Funcionario no encontrado');
+      }
+
+      employee = { id: selectedEmployee.id, name: selectedEmployee.name };
     }
 
-    if (employee.role !== UserRole.EMPLOYEE) {
+    if (!employee) {
       throw new BadRequestException(
-        'El usuario seleccionado no es funcionario',
+        'Debes seleccionar o ingresar un funcionario',
       );
     }
 
@@ -732,7 +763,6 @@ export class TripHistoryService {
           select: {
             id: true,
             name: true,
-            email: true,
           },
         },
       },

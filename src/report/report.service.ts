@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ProblemReportEventType } from '@prisma/client';
@@ -20,6 +21,7 @@ type UploadedImageFile = {
 
 @Injectable()
 export class ReportService {
+  private readonly logger = new Logger(ReportService.name);
   private readonly maxUploadBytes = 5 * 1024 * 1024;
   private readonly notificationTtlMs = 3 * 24 * 60 * 60 * 1000;
 
@@ -143,7 +145,10 @@ export class ReportService {
     });
 
     const screenshotUrl = report.screenshotKey
-      ? await this.s3Service.getSignedGetUrl(report.screenshotKey).catch(() => null)
+      ? await this.s3Service.getSignedGetUrl(report.screenshotKey).catch((err: unknown) => {
+          this.logger.warn(`No se pudo generar URL firmada para ${report.screenshotKey}: ${String(err)}`);
+          return null;
+        })
       : null;
 
     return {
@@ -161,7 +166,10 @@ export class ReportService {
         screenshotUrl: report.screenshotKey
           ? await this.s3Service
               .getSignedGetUrl(report.screenshotKey)
-              .catch(() => null)
+              .catch((err: unknown) => {
+                this.logger.warn(`No se pudo generar URL firmada para ${report.screenshotKey}: ${String(err)}`);
+                return null;
+              })
           : null,
       })),
     );
@@ -278,7 +286,10 @@ export class ReportService {
     }
 
     const screenshotUrl = report.screenshotKey
-      ? await this.s3Service.getSignedGetUrl(report.screenshotKey).catch(() => null)
+      ? await this.s3Service.getSignedGetUrl(report.screenshotKey).catch((err: unknown) => {
+          this.logger.warn(`No se pudo generar URL firmada para ${report.screenshotKey}: ${String(err)}`);
+          return null;
+        })
       : null;
 
     return {

@@ -7,6 +7,7 @@ import {
   IsString,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -15,12 +16,16 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
     example: 'DEF456',
     description: 'Placa nueva del camión',
   })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   plate?: string;
 
   @ApiPropertyOptional({
     example: 'Scania R',
     description: 'Modelo nuevo del camión',
   })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   model?: string;
 
   @ApiPropertyOptional({
@@ -29,6 +34,9 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   brand?: string;
 
   @ApiPropertyOptional({
@@ -37,6 +45,12 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
   })
   @IsOptional()
   @IsNumber()
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) {
+      return undefined;
+    }
+    return Number(value);
+  })
   year?: number;
 
   @ApiPropertyOptional({
@@ -46,6 +60,12 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
   @IsOptional()
   @IsNumber()
   @Min(1)
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) {
+      return undefined;
+    }
+    return Number(value);
+  })
   seatCount?: number;
 
   @ApiPropertyOptional({
@@ -55,6 +75,12 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) {
+      return undefined;
+    }
+    return Number(value);
+  })
   mileage?: number;
 
   @ApiPropertyOptional({

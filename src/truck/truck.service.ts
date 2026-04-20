@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
@@ -10,8 +15,75 @@ import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
 export class TruckService {
   constructor(private prisma: PrismaService) {}
 
-  create(dto: CreateTruckDto) {
-    return this.prisma.truck.create({ data: dto });
+  private sanitizeTruckCreateInput(
+    dto: CreateTruckDto,
+  ): Prisma.TruckUncheckedCreateInput {
+    const data: Prisma.TruckUncheckedCreateInput = {
+      ...dto,
+    };
+
+    data.plate = dto.plate.trim().toUpperCase();
+    data.model = dto.model.trim();
+
+    if (typeof dto.brand === 'string') {
+      data.brand = dto.brand.trim();
+    }
+
+    return data;
+  }
+
+  private sanitizeTruckUpdateInput(
+    dto: UpdateTruckDto,
+  ): Prisma.TruckUncheckedUpdateInput {
+    const data: Prisma.TruckUncheckedUpdateInput = {
+      ...dto,
+    };
+
+    if (typeof dto.plate === 'string') {
+      data.plate = dto.plate.trim().toUpperCase();
+    }
+
+    if (typeof dto.model === 'string') {
+      data.model = dto.model.trim();
+    }
+
+    if (typeof dto.brand === 'string') {
+      data.brand = dto.brand.trim();
+    }
+
+    const dateFields: Array<
+      'technicalReviewExpiresAt' | 'circulationPermitExpiresAt' | 'insuranceExpiresAt' | 'emissionsExpiresAt'
+    > = [
+      'technicalReviewExpiresAt',
+      'circulationPermitExpiresAt',
+      'insuranceExpiresAt',
+      'emissionsExpiresAt',
+    ];
+
+    for (const field of dateFields) {
+      if (dto[field] === null) {
+        data[field] = null;
+      }
+    }
+
+    return data;
+  }
+
+  async create(dto: CreateTruckDto) {
+    const data = this.sanitizeTruckCreateInput(dto);
+
+    try {
+      return await this.prisma.truck.create({ data });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('La patente ya está registrada');
+      }
+
+      throw error;
+    }
   }
 
   findAll() {
@@ -93,12 +165,40 @@ export class TruckService {
 
   async update(id: number, dto: UpdateTruckDto) {
     await this.findOne(id);
-    return this.prisma.truck.update({ where: { id }, data: dto });
+
+    const data = this.sanitizeTruckUpdateInput(dto);
+
+    try {
+      return await this.prisma.truck.update({ where: { id }, data });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('La patente ya está registrada');
+      }
+
+      throw error;
+    }
   }
 
   async remove(id: number) {
     await this.findOne(id);
-    return this.prisma.truck.delete({ where: { id } });
+
+    try {
+      return await this.prisma.truck.delete({ where: { id } });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'No se puede eliminar la patente porque tiene registros asociados',
+        );
+      }
+
+      throw error;
+    }
   }
 
   async assignUser(dto: AssignUserDto) {

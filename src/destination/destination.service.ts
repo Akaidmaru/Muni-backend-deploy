@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { TripHistoryStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDestinationDto } from './dto/create-destination.dto';
 import { UpdateDestinationDto } from './dto/update-destination.dto';
@@ -20,38 +21,56 @@ export type DestinationResponse = {
 export class DestinationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Enriquece un destino con información de viajes asociados
-   */
   private async enrichDestinationWithTripsInfo(
     destination: DestinationResponse,
   ): Promise<DestinationResponse> {
-    // Obtener todos los viajes para este destino
     const trips = await this.prisma.tripHistory.findMany({
       where: { destinationId: destination.id },
-      select: {
-        id: true,
-        date: true,
-        status: true,
-      },
+      select: { date: true, status: true },
       orderBy: { date: 'desc' },
     });
 
-    // Contar total de viajes
-    const tripsCount = trips.length;
+    return this.buildEnrichedDestination(destination, trips);
+  }
 
-    // Determinar el estado: hay viajes en transcurso?
-    const hasActiveTrips = trips.some(
-      (trip) => trip.status === 'DRIVER_FILLING' || trip.status === 'EMPLOYEE_SIGNED',
+  private async enrichManyDestinationsWithTripsInfo(
+    destinations: DestinationResponse[],
+  ): Promise<DestinationResponse[]> {
+    if (destinations.length === 0) return [];
+
+    const ids = destinations.map((d) => d.id);
+    const trips = await this.prisma.tripHistory.findMany({
+      where: { destinationId: { in: ids } },
+      select: { destinationId: true, date: true, status: true },
+      orderBy: { date: 'desc' },
+    });
+
+    const tripsByDestination = new Map<number, typeof trips>();
+    for (const trip of trips) {
+      const list = tripsByDestination.get(trip.destinationId) ?? [];
+      list.push(trip);
+      tripsByDestination.set(trip.destinationId, list);
+    }
+
+    return destinations.map((dest) =>
+      this.buildEnrichedDestination(dest, tripsByDestination.get(dest.id) ?? []),
     );
+  }
 
-    // Obtener el último viaje (date más reciente)
-    const lastTrip = trips.length > 0 ? trips[0] : null;
-    const lastTripDate = lastTrip
-      ? lastTrip.date.toISOString().split('T')[0]
+  private buildEnrichedDestination(
+    destination: DestinationResponse,
+    trips: { date: Date; status: TripHistoryStatus }[],
+  ): DestinationResponse {
+    const tripsCount = trips.length;
+    const hasActiveTrips = trips.some(
+      (trip) =>
+        trip.status === TripHistoryStatus.DRIVER_FILLING ||
+        trip.status === TripHistoryStatus.EMPLOYEE_SIGNED,
+    );
+    const lastTripDate = trips[0]
+      ? trips[0].date.toISOString().split('T')[0]
       : null;
 
-    // Calcular estado
     let calculatedStatus: 'En transcurso' | 'Completado' | null = null;
     if (hasActiveTrips) {
       calculatedStatus = 'En transcurso';
@@ -76,17 +95,24 @@ export class DestinationService {
   }
 
   async create(data: CreateDestinationDto): Promise<DestinationResponse> {
-    const existing = await this.prisma.destination.findUnique({
-      where: { name: data.name },
+    const normalizedName = data.name.trim();
+
+    const existing = await this.prisma.destination.findFirst({
+      where: {
+        name: {
+          equals: normalizedName,
+          mode: 'insensitive',
+        },
+      },
     });
 
     if (existing) {
-      throw new ConflictException(`El destino "${data.name}" ya existe`);
+      throw new ConflictException(`El destino "${normalizedName}" ya existe`);
     }
 
     const destination = await this.prisma.destination.create({
       data: {
-        name: data.name,
+        name: normalizedName,
         active: data.active ?? true,
       },
       select: this.destinationSelect,
@@ -153,13 +179,7 @@ export class DestinationService {
       select: this.destinationSelect,
     });
 
-    const enrichedDestinations = await Promise.all(
-      (destinations as DestinationResponse[]).map((dest) =>
-        this.enrichDestinationWithTripsInfo(dest),
-      ),
-    );
-
-    return enrichedDestinations;
+    return this.enrichManyDestinationsWithTripsInfo(destinations as DestinationResponse[]);
   }
 
   async findAllActive(): Promise<DestinationResponse[]> {
@@ -169,13 +189,7 @@ export class DestinationService {
       select: this.destinationSelect,
     });
 
-    const enrichedDestinations = await Promise.all(
-      (destinations as DestinationResponse[]).map((dest) =>
-        this.enrichDestinationWithTripsInfo(dest),
-      ),
-    );
-
-    return enrichedDestinations;
+    return this.enrichManyDestinationsWithTripsInfo(destinations as DestinationResponse[]);
   }
 
   async findOne(id: number): Promise<DestinationResponse> {
@@ -200,16 +214,22 @@ export class DestinationService {
     await this.findOne(id);
 
     if (data.name) {
+      const normalizedName = data.name.trim();
       const existing = await this.prisma.destination.findFirst({
         where: {
-          name: data.name,
+          name: {
+            equals: normalizedName,
+            mode: 'insensitive',
+          },
           NOT: { id },
         },
       });
 
       if (existing) {
-        throw new ConflictException(`El destino "${data.name}" ya existe`);
+        throw new ConflictException(`El destino "${normalizedName}" ya existe`);
       }
+
+      data.name = normalizedName;
     }
 
     const updateData: {
