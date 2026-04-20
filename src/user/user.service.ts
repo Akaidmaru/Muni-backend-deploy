@@ -203,7 +203,7 @@ export class UserService {
     return user;
   }
 
-  async getTrucksOfUser(userId: number) {
+  async getTrucksOfUser(userId: number, includeUnassignedFallback = false) {
     const assignments = await this.prisma.truckAssignment.findMany({
       where: {
         userId,
@@ -213,7 +213,22 @@ export class UserService {
       },
       include: { truck: true },
     });
-    return assignments.map((a) => a.truck);
+
+    if (assignments.length > 0 || !includeUnassignedFallback) {
+      return assignments.map((a) => a.truck);
+    }
+
+    return this.prisma.truck.findMany({
+      where: {
+        status: TruckStatus.ACTIVE,
+        users: {
+          none: {},
+        },
+      },
+      orderBy: {
+        plate: 'asc',
+      },
+    });
   }
 
   async findByEmail(email: string) {
