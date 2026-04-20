@@ -254,11 +254,32 @@ export class UserService {
   }
 
   async remove(id: number) {
-    await this.findOne(id); // Verifica que existe
+    const user = await this.findOne(id);
 
-    return this.prisma.user.delete({
-      where: { id },
-    });
+    if (user.role === UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'No se puede eliminar a un usuario administrador',
+      );
+    }
+
+    try {
+      await this.prisma.user.delete({
+        where: { id },
+      });
+
+      return { message: 'Usuario eliminado correctamente' };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'No se puede eliminar el usuario porque tiene registros asociados',
+        );
+      }
+
+      throw error;
+    }
   }
 
   async adminUpdateUser(id: number, dto: AdminUpdateUserDto) {

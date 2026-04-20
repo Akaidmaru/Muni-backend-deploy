@@ -19,12 +19,21 @@ model User {
   occupationId            Int?
   occupation              Occupation?      @relation(fields: [occupationId], references: [id])
   trucks                  TruckAssignment[]
-  tripHistories           TripHistory[]
   dailyMaintenanceRecords DailyMaintenanceRecord[]
   problemReports          ProblemReport[]
   problemReportTimelines  ProblemReportTimeline[]
   plateChangeLogs         TruckPlateChangeLog[]
   isVerified              Boolean          @default(false)
+}
+
+model Employee {
+  id           Int           @id @default(autoincrement())
+  name         String
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  tripHistories TripHistory[]
+
+  @@index([name])
 }
 
 model Truck {
@@ -69,7 +78,7 @@ model TripHistory {
   employeeId    Int
   truck         Truck       @relation(fields: [truckId], references: [id])
   destination   Destination @relation(fields: [destinationId], references: [id])
-  employee      User        @relation(fields: [employeeId], references: [id])
+  employee      Employee    @relation(fields: [employeeId], references: [id])
   createdAt     DateTime    @default(now())
   points        TripHistoryPoint[]
 
@@ -133,6 +142,7 @@ model DailyMaintenanceRecord {
   inspectionTime            String
   municipalLicense          String
   currentMileage            Float
+  status                    DailyMaintenanceRecordStatus @default(PENDING)
   
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
@@ -171,6 +181,7 @@ model MonthlyMaintenanceRecord {
   id                      Int     @id @default(autoincrement())
   truckId                 Int
   monthKey                String  // Formato YYYY-MM
+  status                  MonthlyMaintenanceRecordStatus @default(PENDING)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -270,4 +281,14 @@ enum ProblemReportEventType {
   STATUS_CHANGED
   NOTE_ADDED
   NOTE_AND_STATUS_CHANGED
+}
+
+enum MonthlyMaintenanceRecordStatus {
+  PENDING
+  REVIEWED
+}
+
+enum DailyMaintenanceRecordStatus {
+  PENDING
+  REVIEWED
 }

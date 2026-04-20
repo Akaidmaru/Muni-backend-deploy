@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { DailyMaintenanceRecordStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateDailyMaintenanceRecordDto,
@@ -13,6 +13,19 @@ import {
 @Injectable()
 export class DailyMaintenanceRecordService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private deriveRecordStatus(
+    items: CreateDailyMaintenanceRecordDto['dailyMaintenanceItems'],
+  ): DailyMaintenanceRecordStatus {
+    const hasProblematicItem = (items || []).some((item) => {
+      const normalized = String(item?.status || '').trim().toLowerCase();
+      return normalized === 'regular' || normalized === 'malo';
+    });
+
+    return hasProblematicItem
+      ? DailyMaintenanceRecordStatus.PENDING
+      : DailyMaintenanceRecordStatus.REVIEWED;
+  }
 
   private getUtcDayRange(date: Date) {
     const startOfDay = new Date(date);
@@ -34,6 +47,7 @@ export class DailyMaintenanceRecordService {
     driverId: number;
     inspectionDate: Date;
     currentMileage: number;
+    status: DailyMaintenanceRecordStatus;
   }> {
     const { startOfDay, endOfDay } = this.getUtcDayRange(dto.inspectionDate);
 
@@ -77,6 +91,7 @@ export class DailyMaintenanceRecordService {
 
     // Separar dailyMaintenanceItems del DTO
     const { dailyMaintenanceItems, ...recordData } = dto;
+    const computedStatus = this.deriveRecordStatus(dailyMaintenanceItems);
 
     // Si currentMileage es 0 (default), usar el del truck
     const currentMileage =
@@ -89,6 +104,7 @@ export class DailyMaintenanceRecordService {
         data: {
           ...recordData,
           currentMileage,
+          status: computedStatus,
           dailyMaintenanceItems: {
             create: dailyMaintenanceItems,
           },
@@ -111,6 +127,7 @@ export class DailyMaintenanceRecordService {
         driverId: record.driverId,
         inspectionDate: record.inspectionDate,
         currentMileage: record.currentMileage,
+        status: record.status,
       };
     });
   }
@@ -375,10 +392,11 @@ export class DailyMaintenanceRecordService {
     // Separar dailyMaintenanceItems del DTO
     const { dailyMaintenanceItems, ...recordData } = dto;
 
-    // Filtrar propiedades undefined y convertir currentMileage a número
+    // Filtrar propiedades undefined, evitar cambios directos de status
+    // y convertir currentMileage a número
     const cleanData = Object.fromEntries(
       Object.entries(recordData)
-        .filter(([, value]) => value !== undefined)
+        .filter(([key, value]) => key !== 'status' && value !== undefined)
         .map(([key, value]) => {
           if (key === 'currentMileage' && value !== undefined) {
             return [key, Number(value)];
@@ -437,6 +455,51 @@ export class DailyMaintenanceRecordService {
       }
 
       return updated;
+    });
+  }
+
+  async updateStatusAdmin(
+    id: number,
+    status: DailyMaintenanceRecordStatus,
+  ) {
+    const existing = await this.prisma.dailyMaintenanceRecord.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(
+        `Registro de mantenimiento ID ${id} no encontrado`,
+      );
+    }
+
+    return await this.prisma.dailyMaintenanceRecord.update({
+      where: { id },
+      data: { status },
+      include: {
+        truck: {
+          select: {
+            id: true,
+            plate: true,
+            brand: true,
+            model: true,
+            year: true,
+            seatCount: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
+          },
+        },
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        dailyMaintenanceItems: true,
+      },
     });
   }
 

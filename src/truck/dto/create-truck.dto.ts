@@ -6,6 +6,7 @@ import {
   IsString,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -13,11 +14,15 @@ export class CreateTruckDto {
   @ApiProperty({ example: 'ABC123', description: 'Placa del camión' })
   @IsString()
   @IsNotEmpty()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   plate: string;
 
   @ApiProperty({ example: 'Volvo FH', description: 'Modelo del camión' })
   @IsString()
   @IsNotEmpty()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   model: string;
 
   @ApiProperty({
@@ -27,6 +32,9 @@ export class CreateTruckDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   brand?: string;
 
   @ApiProperty({
@@ -36,6 +44,12 @@ export class CreateTruckDto {
   })
   @IsOptional()
   @IsNumber()
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) {
+      return undefined;
+    }
+    return Number(value);
+  })
   year?: number;
 
   @ApiProperty({
@@ -46,6 +60,12 @@ export class CreateTruckDto {
   @IsOptional()
   @IsNumber()
   @Min(1)
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) {
+      return undefined;
+    }
+    return Number(value);
+  })
   seatCount?: number;
 
   @ApiProperty({
@@ -57,6 +77,12 @@ export class CreateTruckDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) {
+      return undefined;
+    }
+    return Number(value);
+  })
   mileage?: number;
 
   @ApiProperty({

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { MonthlyMaintenanceRecordStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertMonthlyMaintenanceRecordDto } from './dto';
 
@@ -46,6 +47,19 @@ export class MonthlyMaintenanceRecordService {
     }
 
     return Array.from(deduped.values());
+  }
+
+  private deriveRecordStatus(
+    items: UpsertMonthlyMaintenanceRecordDto['monthlyMaintenanceItems'],
+  ): MonthlyMaintenanceRecordStatus {
+    const hasProblematicItem = items.some((item) => {
+      const normalized = String(item.status || '').trim().toLowerCase();
+      return normalized === 'regular' || normalized === 'malo';
+    });
+
+    return hasProblematicItem
+      ? MonthlyMaintenanceRecordStatus.PENDING
+      : MonthlyMaintenanceRecordStatus.REVIEWED;
   }
 
   private parseMonthKey(monthKey: string) {
@@ -132,6 +146,9 @@ export class MonthlyMaintenanceRecordService {
     }
 
     return await this.prisma.$transaction(async (tx) => {
+      const sanitizedItems = this.dedupeMonthlyItems(dto.monthlyMaintenanceItems);
+      const computedStatus = this.deriveRecordStatus(sanitizedItems);
+
       const baseRecord = await tx.monthlyMaintenanceRecord.upsert({
         where: {
           truckId_monthKey: {
@@ -142,15 +159,16 @@ export class MonthlyMaintenanceRecordService {
         create: {
           truckId: dto.truckId,
           monthKey: dto.monthKey,
+          status: computedStatus,
         },
-        update: {},
+        update: {
+          status: computedStatus,
+        },
       });
 
       await tx.monthlyMaintenanceItem.deleteMany({
         where: { recordId: baseRecord.id },
       });
-
-      const sanitizedItems = this.dedupeMonthlyItems(dto.monthlyMaintenanceItems);
 
       if (sanitizedItems.length > 0) {
         await tx.monthlyMaintenanceItem.createMany({
@@ -186,6 +204,42 @@ export class MonthlyMaintenanceRecordService {
           monthlyMaintenanceItems: true,
         },
       });
+    });
+  }
+
+  async updateStatusAdmin(
+    recordId: number,
+    status: MonthlyMaintenanceRecordStatus,
+  ) {
+    const existing = await this.prisma.monthlyMaintenanceRecord.findUnique({
+      where: { id: recordId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Registro mensual con ID ${recordId} no encontrado`);
+    }
+
+    return await this.prisma.monthlyMaintenanceRecord.update({
+      where: { id: recordId },
+      data: { status },
+      include: {
+        truck: {
+          select: {
+            id: true,
+            plate: true,
+            brand: true,
+            model: true,
+            year: true,
+            seatCount: true,
+            technicalReviewExpiresAt: true,
+            circulationPermitExpiresAt: true,
+            insuranceExpiresAt: true,
+            emissionsExpiresAt: true,
+          },
+        },
+        monthlyMaintenanceItems: true,
+      },
     });
   }
 }

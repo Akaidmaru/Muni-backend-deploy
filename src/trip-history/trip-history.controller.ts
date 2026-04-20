@@ -81,6 +81,8 @@ export class TripHistoryController {
   }
 
   @Post('start')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('DRIVER')
   async startTrip(
     @Req() req: AuthenticatedRequest,
     @Body() dto: StartTripDto,
@@ -93,6 +95,8 @@ export class TripHistoryController {
   }
 
   @Post(':id/points')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('DRIVER')
   async addPoints(
     @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
@@ -117,6 +121,8 @@ export class TripHistoryController {
   }
 
   @Patch(':id/finish')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('DRIVER')
   async finishTrip(
     @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,

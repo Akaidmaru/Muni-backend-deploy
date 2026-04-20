@@ -5,6 +5,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   UseGuards,
   Req,
   Query,
@@ -35,6 +36,8 @@ interface AuthenticatedRequest extends Request {
 @ApiBearerAuth()
 @Controller('users')
 export class UserController {
+  constructor(private readonly userService: UserService) {}
+
   private parseRolesQuery(
     rolesParam?: string | string[],
   ): UserRole[] | undefined {
@@ -166,7 +169,6 @@ export class UserController {
   getTrucksOfUser(@Param('id') id: string) {
     return this.userService.getTrucksOfUser(Number(id));
   }
-  constructor(private readonly userService: UserService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -304,5 +306,24 @@ export class UserController {
   @Roles('ADMIN')
   adminUpdateUser(@Param('id') id: string, @Body() dto: AdminUpdateUserDto) {
     return this.userService.adminUpdateUser(Number(id), dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Eliminar usuario por administrador' })
+  @ApiResponse({
+    status: 200,
+    description: 'Usuario eliminado por administrador',
+    examples: {
+      success: {
+        summary: 'Usuario eliminado',
+        value: { message: 'Usuario eliminado correctamente' },
+      },
+    },
+  })
+  adminDeleteUser(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.remove(id);
   }
 }

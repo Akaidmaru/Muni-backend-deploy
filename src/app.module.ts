@@ -9,6 +9,7 @@ import { RouteModule } from './route/route.module';
 import { OccupationModule } from './occupation/occupation.module';
 import { DestinationModule } from './destination/destination.module';
 import { ReportModule } from './report/report.module';
+import { EmployeeModule } from './employee/employee.module';
 import { TripHistoryModule } from './trip-history/trip-history.module';
 import { DailyMaintenanceRecordModule } from './daily-maintenance-record/daily-maintenance-record.module';
 import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/monthly-maintenance-record.module';
@@ -28,6 +29,7 @@ import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/mon
     RouteModule,
     OccupationModule,
     DestinationModule,
+    EmployeeModule,
     ReportModule,
     TripHistoryModule,
     DailyMaintenanceRecordModule,
