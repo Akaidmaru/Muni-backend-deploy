@@ -24,6 +24,7 @@ model User {
   problemReportTimelines  ProblemReportTimeline[]
   plateChangeLogs         TruckPlateChangeLog[]
   isVerified              Boolean          @default(false)
+  tripHistoriesAsDriver   TripHistory[]
 }
 
 model Employee {
@@ -76,9 +77,11 @@ model TripHistory {
   truckId       Int
   destinationId Int
   employeeId    Int
+  driverId      Int?
   truck         Truck       @relation(fields: [truckId], references: [id])
   destination   Destination @relation(fields: [destinationId], references: [id])
   employee      Employee    @relation(fields: [employeeId], references: [id])
+  driver        User?       @relation(fields: [driverId], references: [id])
   createdAt     DateTime    @default(now())
   points        TripHistoryPoint[]
 
@@ -86,6 +89,7 @@ model TripHistory {
   @@index([truckId])
   @@index([destinationId])
   @@index([employeeId])
+  @@index([driverId])
   @@index([status])
 }
 

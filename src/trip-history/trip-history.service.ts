@@ -146,18 +146,6 @@ export class TripHistoryService {
           select: {
             id: true,
             plate: true,
-            users: {
-              select: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    role: true,
-                  },
-                },
-              },
-            },
           },
         },
         destination: {
@@ -172,6 +160,13 @@ export class TripHistoryService {
             name: true,
           },
         },
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
       orderBy: {
         date: 'desc',
@@ -182,13 +177,6 @@ export class TripHistoryService {
 
     const mappedItems = await Promise.all(
       items.map(async (item) => {
-        const preferredDriverAssignment = item.truck.users.find(
-          (assignment) => assignment.user.role === UserRole.DRIVER,
-        );
-        const fallbackAssignment = item.truck.users[0];
-        const resolvedDriverAssignment =
-          preferredDriverAssignment ?? fallbackAssignment;
-
         const [signatureUrl, signatureDataUrl] = item.signatureKey
           ? await Promise.all([
               this.getCachedSignedUrl(item.signatureKey),
@@ -200,17 +188,6 @@ export class TripHistoryService {
           ...item,
           signatureUrl,
           signatureDataUrl,
-          truck: {
-            id: item.truck.id,
-            plate: item.truck.plate,
-          },
-          driver: resolvedDriverAssignment
-            ? {
-                id: resolvedDriverAssignment.user.id,
-                name: resolvedDriverAssignment.user.name,
-                email: resolvedDriverAssignment.user.email,
-              }
-            : null,
         };
       }),
     );
@@ -245,21 +222,13 @@ export class TripHistoryService {
     const whereAnd = this.buildFilters(options);
 
     if (requester.role !== UserRole.ADMIN) {
-      whereAnd.push({
-        truck: {
-          users: {
-            some: {
-              userId,
-            },
-          },
-        },
-      });
+      whereAnd.push({ driverId: userId });
     }
 
     return this.findWithWhere(whereAnd, pagination);
   }
 
-  async startTrip(_userId: number, dto: StartTripDto) {
+  async startTrip(userId: number, dto: StartTripDto) {
     const truck = await this.prisma.truck.findFirst({
       where: {
         plate: dto.plate,
@@ -364,6 +333,7 @@ export class TripHistoryService {
         truckId: truck.id,
         destinationId: destination.id,
         employeeId: employee.id,
+        driverId: userId,
       },
       select: {
         id: true,
@@ -402,13 +372,19 @@ export class TripHistoryService {
       where: { id: tripHistoryId },
       select: {
         id: true,
-        truckId: true,
+        driverId: true,
         status: true,
       },
     });
 
     if (!tripHistory) {
       throw new NotFoundException('Viaje no encontrado');
+    }
+
+    if (tripHistory.driverId !== userId) {
+      throw new ForbiddenException(
+        'No tienes permiso para modificar este viaje',
+      );
     }
 
     if (tripHistory.status !== TripHistoryStatus.DRIVER_FILLING) {
@@ -486,6 +462,7 @@ export class TripHistoryService {
       where: { id: tripHistoryId },
       select: {
         id: true,
+        driverId: true,
         truckId: true,
         startKm: true,
         status: true,
@@ -494,6 +471,12 @@ export class TripHistoryService {
 
     if (!tripHistory) {
       throw new NotFoundException('Viaje no encontrado');
+    }
+
+    if (tripHistory.driverId !== userId) {
+      throw new ForbiddenException(
+        'No tienes permiso para finalizar este viaje',
+      );
     }
 
     if (tripHistory.status !== TripHistoryStatus.DRIVER_FILLING) {
@@ -687,7 +670,7 @@ export class TripHistoryService {
         : {}),
     };
 
-    const updatedTrip = await this.prisma.tripHistory.update({
+    return this.prisma.tripHistory.update({
       where: { id: tripHistory.id },
       data,
       include: {
@@ -695,18 +678,6 @@ export class TripHistoryService {
           select: {
             id: true,
             plate: true,
-            users: {
-              select: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    role: true,
-                  },
-                },
-              },
-            },
           },
         },
         destination: {
@@ -721,29 +692,14 @@ export class TripHistoryService {
             name: true,
           },
         },
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     });
-
-    const preferredDriverAssignment = updatedTrip.truck.users.find(
-      (assignment) => assignment.user.role === UserRole.DRIVER,
-    );
-    const fallbackAssignment = updatedTrip.truck.users[0];
-    const resolvedDriverAssignment =
-      preferredDriverAssignment ?? fallbackAssignment;
-
-    return {
-      ...updatedTrip,
-      truck: {
-        id: updatedTrip.truck.id,
-        plate: updatedTrip.truck.plate,
-      },
-      driver: resolvedDriverAssignment
-        ? {
-            id: resolvedDriverAssignment.user.id,
-            name: resolvedDriverAssignment.user.name,
-            email: resolvedDriverAssignment.user.email,
-          }
-        : null,
-    };
   }
 }
