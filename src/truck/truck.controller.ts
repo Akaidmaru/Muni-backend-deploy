@@ -28,11 +28,11 @@ interface AuthenticatedRequest extends Request {
 @ApiBearerAuth()
 @Controller('trucks')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
 export class TruckController {
   constructor(private readonly truckService: TruckService) {}
 
   @Post()
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Crear camión (ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -49,6 +49,7 @@ export class TruckController {
   }
 
   @Get()
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Listar todos los camiones (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -67,7 +68,27 @@ export class TruckController {
     return this.truckService.findAll();
   }
 
+  @Get('unassigned')
+  @ApiOperation({ summary: 'Listar camiones sin asignar a conductores (DRIVER/ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Camiones sin asignar',
+    examples: {
+      success: {
+        summary: 'Camiones sin asignar listados',
+        value: [
+          { id: 1, plate: 'ABC123' },
+          { id: 2, plate: 'DEF456' },
+        ],
+      },
+    },
+  })
+  findUnassigned() {
+    return this.truckService.findUnassigned();
+  }
+
   @Get('out-of-service-alerts')
+  @Roles('ADMIN')
   @ApiOperation({
     summary:
       'Listar vehículos fuera de servicio por avería (último evento por camión).',
@@ -81,6 +102,7 @@ export class TruckController {
   }
 
   @Get(':id')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Obtener camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -97,6 +119,7 @@ export class TruckController {
   }
 
   @Patch(':id')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Actualizar camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -113,6 +136,7 @@ export class TruckController {
   }
 
   @Delete(':id')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Eliminar camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -129,6 +153,7 @@ export class TruckController {
   }
 
   @Post('assign')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Asignar usuario a camión (ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -145,6 +170,7 @@ export class TruckController {
   }
 
   @Get(':id/users')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Listar usuarios asignados a un camión (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -164,7 +190,6 @@ export class TruckController {
   }
 
   @Post('plate-change')
-  @UseGuards(JwtAuthGuard)
   @Roles('DRIVER', 'EMPLOYEE', 'ADMIN')
   @ApiOperation({
     summary:
