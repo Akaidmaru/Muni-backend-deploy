@@ -142,6 +142,7 @@ model DailyMaintenanceRecord {
   inspectionTime            String
   municipalLicense          String
   currentMileage            Float
+  status                    DailyMaintenanceRecordStatus @default(PENDING)
   
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
@@ -180,6 +181,7 @@ model MonthlyMaintenanceRecord {
   id                      Int     @id @default(autoincrement())
   truckId                 Int
   monthKey                String  // Formato YYYY-MM
+  status                  MonthlyMaintenanceRecordStatus @default(PENDING)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -279,4 +281,14 @@ enum ProblemReportEventType {
   STATUS_CHANGED
   NOTE_ADDED
   NOTE_AND_STATUS_CHANGED
+}
+
+enum MonthlyMaintenanceRecordStatus {
+  PENDING
+  REVIEWED
+}
+
+enum DailyMaintenanceRecordStatus {
+  PENDING
+  REVIEWED
 }

@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   ParseIntPipe,
   Post,
   Query,
@@ -14,7 +15,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MonthlyMaintenanceRecordService } from './monthly-maintenance-record.service';
-import { UpsertMonthlyMaintenanceRecordDto } from './dto';
+import {
+  UpsertMonthlyMaintenanceRecordDto,
+  UpdateMonthlyMaintenanceStatusDto,
+} from './dto';
 
 @ApiBearerAuth()
 @Controller('monthly-maintenance-records')
@@ -71,5 +75,22 @@ export class MonthlyMaintenanceRecordController {
     @Body() dto: UpsertMonthlyMaintenanceRecordDto,
   ) {
     return await this.monthlyMaintenanceRecordService.upsertAdmin(dto);
+  }
+
+  @Patch('admin/:id/status')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Actualizar estado mensual (solo ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado del registro mensual actualizado correctamente',
+  })
+  async updateStatusAdmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateMonthlyMaintenanceStatusDto,
+  ) {
+    return await this.monthlyMaintenanceRecordService.updateStatusAdmin(
+      id,
+      dto.status,
+    );
   }
 }

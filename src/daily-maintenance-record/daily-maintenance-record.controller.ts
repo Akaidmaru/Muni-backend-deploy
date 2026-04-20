@@ -19,6 +19,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import {
   CreateDailyMaintenanceRecordDto,
   UpdateDailyMaintenanceRecordDto,
+  UpdateDailyMaintenanceStatusDto,
 } from './dto';
 
 @ApiBearerAuth()
@@ -201,6 +202,23 @@ export class DailyMaintenanceRecordController {
   })
   async findOneAdmin(@Param('id', ParseIntPipe) id: number) {
     return await this.DailyMaintenanceRecordService.findOne(id);
+  }
+
+  @Patch('admin/:id/status')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Actualizar estado diario (solo ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado del registro diario actualizado correctamente',
+  })
+  async updateStatusAdmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDailyMaintenanceStatusDto,
+  ) {
+    return await this.DailyMaintenanceRecordService.updateStatusAdmin(
+      id,
+      dto.status,
+    );
   }
 
   @Patch(':id')
