@@ -18,6 +18,7 @@ npm install
 1. Copia el archivo `.env.example` a `.env` y configura las variables necesarias.
 2. Configura la base de datos en `prisma/schema.prisma` si es necesario.
 3. Para guardar firmas de viajes en S3, configura `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_S3_BUCKET`.
+4. Para el asistente IA, configura `GROQ_API_KEY` y opcionalmente `GROQ_MODEL`.
 
 ## Migraciones Prisma
 
@@ -45,3 +46,23 @@ npm run start:dev
 ## Documentación
 - [NestJS](https://docs.nestjs.com/)
 - [Prisma](https://www.prisma.io/docs/)
+
+## Asistente IA (Groq)
+
+- Endpoint: `POST /ai-chat/query`
+- Requiere JWT y rol `ADMIN`.
+- Body de ejemplo:
+
+```json
+{
+	"message": "Dame los 5 primeros camiones",
+	"limit": 5
+}
+```
+
+- Variables de entorno:
+
+```env
+GROQ_API_KEY=tu_api_key
+GROQ_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+```
