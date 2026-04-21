@@ -133,6 +133,78 @@ export class TripHistoryService {
     return whereAnd;
   }
 
+  private parseDateOnly(dateStr: string): Date | null {
+    const match = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day
+    ) {
+      return null;
+    }
+
+    return parsed;
+  }
+
+  private getCurrentDateForTimeZone(timeZone?: string): Date {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timeZone || 'UTC',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const parts = formatter.formatToParts(new Date());
+      const year = parts.find((part) => part.type === 'year')?.value;
+      const month = parts.find((part) => part.type === 'month')?.value;
+      const day = parts.find((part) => part.type === 'day')?.value;
+
+      if (year && month && day) {
+        const parsed = this.parseDateOnly(`${year}-${month}-${day}`);
+        if (parsed) return parsed;
+      }
+    } catch {
+      // Si llega una zona inválida, caer al comportamiento por defecto.
+    }
+
+    const now = new Date();
+    return new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+  }
+
+  private getUtcDayRange(date: Date) {
+    const startOfDay = new Date(date);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    return { startOfDay, endOfDay };
+  }
+
+  private resolveOperationalDate(
+    clientDate?: string,
+    clientTimeZone?: string,
+  ): Date {
+    if (clientDate) {
+      const parsedClientDate = this.parseDateOnly(clientDate);
+      if (parsedClientDate) {
+        return parsedClientDate;
+      }
+    }
+
+    return this.getCurrentDateForTimeZone(clientTimeZone);
+  }
+
   private async findWithWhere(
     whereAnd: Prisma.TripHistoryWhereInput[],
     pagination: PaginationData,
@@ -233,7 +305,7 @@ export class TripHistoryService {
     return this.findWithWhere(whereAnd, pagination);
   }
 
-  async startTrip(userId: number, dto: StartTripDto) {
+  async startTrip(userId: number, dto: StartTripDto, clientTimeZone?: string) {
     const truck = await this.prisma.truck.findFirst({
       where: {
         plate: dto.plate,
@@ -247,6 +319,31 @@ export class TripHistoryService {
 
     if (!truck) {
       throw new NotFoundException('La patente seleccionada no está activa');
+    }
+
+    const operationalDate = this.resolveOperationalDate(
+      dto.clientDate,
+      clientTimeZone,
+    );
+    const { startOfDay, endOfDay } = this.getUtcDayRange(operationalDate);
+
+    const maintenanceRecord = await this.prisma.dailyMaintenanceRecord.findFirst(
+      {
+        where: {
+          truckId: truck.id,
+          inspectionDate: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+        },
+        select: { id: true },
+      },
+    );
+
+    if (!maintenanceRecord) {
+      throw new BadRequestException(
+        'Debe completar la encuesta diaria del vehículo antes de iniciar el primer viaje.',
+      );
     }
 
     const customDestinationName = dto.customDestination?.trim();

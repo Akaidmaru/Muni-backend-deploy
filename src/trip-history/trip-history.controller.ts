@@ -87,9 +87,15 @@ export class TripHistoryController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: StartTripDto,
   ): Promise<unknown> {
+    const headerTimeZone = req.headers['x-client-timezone'];
+    const clientTimeZone = Array.isArray(headerTimeZone)
+      ? headerTimeZone[0]
+      : headerTimeZone;
+
     const tripHistory: unknown = await this.tripHistoryService.startTrip(
       req.user.id,
       dto,
+      clientTimeZone,
     );
     return tripHistory;
   }

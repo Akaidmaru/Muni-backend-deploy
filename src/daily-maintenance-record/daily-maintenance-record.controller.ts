@@ -22,6 +22,29 @@ import {
   UpdateDailyMaintenanceStatusDto,
 } from './dto';
 
+const parseDateOnlyOrThrow = (dateStr: string): Date => {
+  const match = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    throw new BadRequestException('Formato de fecha inválido. Use YYYY-MM-DD');
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new BadRequestException('Formato de fecha inválido. Use YYYY-MM-DD');
+  }
+
+  return parsed;
+};
+
 @ApiBearerAuth()
 @Controller('daily-maintenance-records')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -90,10 +113,7 @@ export class DailyMaintenanceRecordController {
     @Param('truckId', ParseIntPipe) truckId: number,
     @Query('date') dateStr: string,
   ) {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) {
-      throw new BadRequestException('Formato de fecha inválido');
-    }
+    const date = parseDateOnlyOrThrow(dateStr);
     return await this.DailyMaintenanceRecordService.findByTruckAndDate(
       truckId,
       date,
@@ -114,10 +134,7 @@ export class DailyMaintenanceRecordController {
     @Param('driverId', ParseIntPipe) driverId: number,
     @Query('date') dateStr: string,
   ) {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) {
-      throw new BadRequestException('Formato de fecha inválido');
-    }
+    const date = parseDateOnlyOrThrow(dateStr);
     return await this.DailyMaintenanceRecordService.findByDriverAndDate(
       driverId,
       date,
@@ -140,10 +157,7 @@ export class DailyMaintenanceRecordController {
     @Param('truckId', ParseIntPipe) truckId: number,
     @Query('date') dateStr: string,
   ) {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) {
-      throw new BadRequestException('Formato de fecha inválido');
-    }
+    const date = parseDateOnlyOrThrow(dateStr);
     return await this.DailyMaintenanceRecordService.findByDriverTruckAndDate(
       driverId,
       truckId,
