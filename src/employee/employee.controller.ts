@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -32,6 +35,13 @@ export class EmployeeController {
     return this.employeeService.findAll();
   }
 
+  @Get(':id')
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<EmployeeResponse> {
+    return this.employeeService.findOne(id);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
@@ -47,5 +57,13 @@ export class EmployeeController {
     @Body() dto: UpdateEmployeeDto,
   ): Promise<EmployeeResponse> {
     return this.employeeService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.employeeService.remove(id);
   }
 }

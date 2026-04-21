@@ -14,19 +14,6 @@ import {
 export class DailyMaintenanceRecordService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private deriveRecordStatus(
-    items: CreateDailyMaintenanceRecordDto['dailyMaintenanceItems'],
-  ): DailyMaintenanceRecordStatus {
-    const hasProblematicItem = (items || []).some((item) => {
-      const normalized = String(item?.status || '').trim().toLowerCase();
-      return normalized === 'regular' || normalized === 'malo';
-    });
-
-    return hasProblematicItem
-      ? DailyMaintenanceRecordStatus.PENDING
-      : DailyMaintenanceRecordStatus.REVIEWED;
-  }
-
   private getUtcDayRange(date: Date) {
     const startOfDay = new Date(date);
     startOfDay.setUTCHours(0, 0, 0, 0);
@@ -69,11 +56,10 @@ export class DailyMaintenanceRecordService {
       );
     }
 
-    // Verificar que no exista ya un registro para este truck/driver/día
+    // Verificar que no exista ya un registro para este vehículo en el día
     const existingRecord = await this.prisma.dailyMaintenanceRecord.findFirst(
       {
         where: {
-          driverId: dto.driverId,
           truckId: dto.truckId,
           inspectionDate: {
             gte: startOfDay,
@@ -85,13 +71,12 @@ export class DailyMaintenanceRecordService {
 
     if (existingRecord) {
       throw new ConflictException(
-        `Ya existe un registro de mantenimiento para este vehículo y conductor en esta fecha`,
+        `Ya existe un registro de mantenimiento para este vehículo en esta fecha`,
       );
     }
 
     // Separar dailyMaintenanceItems del DTO
     const { dailyMaintenanceItems, ...recordData } = dto;
-    const computedStatus = this.deriveRecordStatus(dailyMaintenanceItems);
 
     // Si currentMileage es 0 (default), usar el del truck
     const currentMileage =
@@ -104,7 +89,7 @@ export class DailyMaintenanceRecordService {
         data: {
           ...recordData,
           currentMileage,
-          status: computedStatus,
+          status: DailyMaintenanceRecordStatus.PENDING,
           dailyMaintenanceItems: {
             create: dailyMaintenanceItems,
           },
@@ -294,7 +279,7 @@ export class DailyMaintenanceRecordService {
    * Obtener registro de mantenimiento por conductor, vehículo y fecha
    */
   async findByDriverTruckAndDate(
-    driverId: number,
+    _driverId: number,
     truckId: number,
     inspectionDate: Date,
   ) {
@@ -302,7 +287,6 @@ export class DailyMaintenanceRecordService {
 
     return await this.prisma.dailyMaintenanceRecord.findFirst({
       where: {
-        driverId,
         truckId,
         inspectionDate: {
           gte: startOfDay,

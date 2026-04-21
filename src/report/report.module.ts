@@ -23,5 +23,6 @@ import { ReportService } from './report.service';
   ],
   controllers: [ReportController],
   providers: [ReportService, RolesGuard, ReportNotificationsGateway],
+  exports: [ReportNotificationsGateway],
 })
 export class ReportModule {}

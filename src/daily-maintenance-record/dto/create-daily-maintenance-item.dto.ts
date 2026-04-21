@@ -13,8 +13,8 @@ export class CreateDailyMaintenanceItemDto {
   @IsIn(['Si', 'No'])
   exists: string = '';
 
-  @IsIn(['Bueno', 'Regular', 'Malo', ''])
-  status: string = '';
+  @IsIn(['Bueno', 'Regular', 'Malo'])
+  status: string;
 
   @IsString()
   @IsOptional()

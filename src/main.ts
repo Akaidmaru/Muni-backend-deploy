@@ -14,7 +14,7 @@ async function bootstrap() {
     origin: allowedOrigins,
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: 'Content-Type,Authorization',
+    allowedHeaders: 'Content-Type,Authorization,X-Client-Timezone',
   });
   app.useGlobalFilters(new PrismaExceptionFilter());
   app.useGlobalPipes(

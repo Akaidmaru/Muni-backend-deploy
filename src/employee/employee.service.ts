@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -57,6 +61,29 @@ export class EmployeeService {
         active: true,
       },
     });
+  }
+
+  async findOne(id: number): Promise<EmployeeResponse> {
+    const employee = await this.prisma.employee.findUnique({ where: { id } });
+    if (!employee) throw new NotFoundException('Employee not found');
+    return employee;
+  }
+
+  async remove(id: number): Promise<void> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id },
+      include: { _count: { select: { tripHistories: true } } },
+    });
+
+    if (!employee) throw new NotFoundException('Employee not found');
+
+    if (employee._count.tripHistories > 0) {
+      throw new ConflictException(
+        'Cannot delete employee with associated trip histories. Deactivate it instead.',
+      );
+    }
+
+    await this.prisma.employee.delete({ where: { id } });
   }
 
   async update(id: number, dto: UpdateEmployeeDto): Promise<EmployeeResponse> {

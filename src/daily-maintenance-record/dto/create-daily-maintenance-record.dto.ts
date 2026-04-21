@@ -4,6 +4,7 @@ import {
   IsDate,
   IsArray,
   ValidateNested,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateDailyMaintenanceItemDto } from './create-daily-maintenance-item.dto';
@@ -20,7 +21,8 @@ export class CreateDailyMaintenanceRecordDto {
   inspectionDate: Date = new Date();
 
   @IsString()
-  inspectionTime: string = ''; // HH:MM
+  @Matches(/^\d{2}:\d{2}$/, { message: 'inspectionTime debe tener formato HH:MM' })
+  inspectionTime: string = '';
 
   @IsString()
   municipalLicense: string = '';

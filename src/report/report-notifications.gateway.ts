@@ -4,6 +4,16 @@ import {
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
+
+export interface TruckExpiryPayload {
+  notificationId: string;
+  truckId: number;
+  plate: string;
+  documentType: string;
+  documentLabel: string;
+  expiresAt: string;
+  daysUntilExpiry: 7 | 1;
+}
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import {
@@ -97,6 +107,10 @@ export class ReportNotificationsGateway
 
   emitReportUpdatedToUser(userId: number, payload: unknown): void {
     this.server.to(this.getUserRoom(userId)).emit('report:updated', payload);
+  }
+
+  emitTruckExpiryToAdmins(payload: TruckExpiryPayload): void {
+    this.server.to(this.getRoleRoom(UserRole.ADMIN)).emit('truck:expiry', payload);
   }
 
   private extractToken(client: Socket): string | null {
