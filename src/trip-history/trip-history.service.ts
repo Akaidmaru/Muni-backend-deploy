@@ -726,6 +726,7 @@ export class TripHistoryService {
         endKm: true,
         truckId: true,
         destinationId: true,
+        employeeId: true,
       },
     });
 
@@ -764,8 +765,50 @@ export class TripHistoryService {
       }
     }
 
+    if (dto.driverId !== undefined) {
+      const driverUser = await this.prisma.user.findUnique({
+        where: { id: dto.driverId },
+        select: { id: true, role: true },
+      });
+
+      if (!driverUser) {
+        throw new NotFoundException('Conductor no encontrado');
+      }
+
+      if (driverUser.role !== UserRole.DRIVER) {
+        throw new BadRequestException('El usuario indicado no es un conductor');
+      }
+    }
+
+    if (dto.employeeId !== undefined) {
+      const employee = await this.prisma.employee.findUnique({
+        where: { id: dto.employeeId },
+        select: { id: true, active: true },
+      });
+
+      if (!employee) {
+        throw new NotFoundException('Funcionario no encontrado');
+      }
+
+      if (!employee.active && employee.id !== tripHistory.employeeId) {
+        throw new BadRequestException(
+          'No se puede asignar un funcionario inactivo',
+        );
+      }
+    }
+
+    const dateForUpdate = dto.date
+      ? (() => {
+          const parsed = this.parseDateOnly(dto.date);
+          if (!parsed) {
+            throw new BadRequestException('Fecha inválida');
+          }
+          return parsed;
+        })()
+      : null;
+
     const data: Prisma.TripHistoryUpdateInput = {
-      ...(dto.date ? { date: new Date(dto.date) } : {}),
+      ...(dateForUpdate ? { date: dateForUpdate } : {}),
       ...(dto.startTime !== undefined ? { startTime: dto.startTime } : {}),
       ...(dto.endTime !== undefined ? { endTime: dto.endTime } : {}),
       ...(dto.status !== undefined ? { status: dto.status } : {}),
@@ -775,6 +818,8 @@ export class TripHistoryService {
       ...(dto.destinationId !== undefined
         ? { destinationId: dto.destinationId }
         : {}),
+      ...(dto.driverId !== undefined ? { driverId: dto.driverId } : {}),
+      ...(dto.employeeId !== undefined ? { employeeId: dto.employeeId } : {}),
     };
 
     return this.prisma.tripHistory.update({
@@ -825,3 +870,4 @@ export class TripHistoryService {
     });
   }
 }
+
