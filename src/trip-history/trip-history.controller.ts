@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -119,9 +122,7 @@ export class TripHistoryController {
   @Get(':id/map-route')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-  async getAdminRoute(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<unknown> {
+  async getAdminRoute(@Param('id', ParseIntPipe) id: number): Promise<unknown> {
     const route: unknown = await this.tripHistoryService.getAdminRoute(id);
     return route;
   }
@@ -154,5 +155,13 @@ export class TripHistoryController {
       dto,
     );
     return tripHistory;
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.tripHistoryService.remove(id);
   }
 }
