@@ -809,4 +809,19 @@ export class TripHistoryService {
       },
     });
   }
+
+  async remove(tripHistoryId: number): Promise<void> {
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: { id: true },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    await this.prisma.tripHistory.delete({
+      where: { id: tripHistoryId },
+    });
+  }
 }
