@@ -41,6 +41,8 @@ export class TripHistoryController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('name') name?: string,
+    @Query('destination') destination?: string,
+    @Query('driver') driver?: string,
     @Query('license') license?: string,
   ): Promise<unknown> {
     const parsedPage = Number(page) || 1;
@@ -52,6 +54,8 @@ export class TripHistoryController {
       from,
       to,
       name,
+      destination,
+      driver,
       license,
     });
 
@@ -66,6 +70,8 @@ export class TripHistoryController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('name') name?: string,
+    @Query('destination') destination?: string,
+    @Query('driver') driver?: string,
     @Query('license') license?: string,
   ): Promise<unknown> {
     const parsedPage = Number(page) || 1;
@@ -78,6 +84,8 @@ export class TripHistoryController {
         from,
         to,
         name,
+        destination,
+        driver,
         license,
       });
     return tripHistories;

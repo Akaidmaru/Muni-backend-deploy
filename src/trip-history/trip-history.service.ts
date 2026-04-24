@@ -23,6 +23,8 @@ type FindAllOptions = {
   from?: string;
   to?: string;
   name?: string;
+  destination?: string;
+  driver?: string;
   license?: string;
 };
 
@@ -97,6 +99,28 @@ export class TripHistoryService {
         employee: {
           name: {
             contains: options.name,
+            mode: 'insensitive',
+          },
+        },
+      });
+    }
+
+    if (options.destination) {
+      whereAnd.push({
+        destination: {
+          name: {
+            contains: options.destination,
+            mode: 'insensitive',
+          },
+        },
+      });
+    }
+
+    if (options.driver) {
+      whereAnd.push({
+        driver: {
+          name: {
+            contains: options.driver,
             mode: 'insensitive',
           },
         },
