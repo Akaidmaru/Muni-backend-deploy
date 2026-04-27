@@ -69,14 +69,19 @@ export class TruckService {
     return data;
   }
 
-  async create(userId: number, dto: CreateTruckDto) {
+  private async getManagedById(userId: number): Promise<number | undefined> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
+    if (user?.role === UserRole.ADMIN) return undefined;
+    return userId;
+  }
 
+  async create(userId: number, dto: CreateTruckDto) {
+    const managedById = await this.getManagedById(userId);
     const data = this.sanitizeTruckCreateInput(dto);
-    data.managedBy = user?.role ?? UserRole.ADMIN;
+    data.managedById = managedById ?? null;
 
     try {
       return await this.prisma.truck.create({ data });
@@ -93,14 +98,10 @@ export class TruckService {
   }
 
   async findAll(userId: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
-    const managedBy = user?.role ?? UserRole.ADMIN;
+    const managedById = await this.getManagedById(userId);
 
     return this.prisma.truck.findMany({
-      where: { managedBy },
+      where: { managedById },
       include: {
         users: {
           where: {
@@ -126,15 +127,11 @@ export class TruckService {
   }
 
   async findUnassigned(userId: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
-    const managedBy = user?.role ?? UserRole.ADMIN;
+    const managedById = await this.getManagedById(userId);
 
     return this.prisma.truck.findMany({
       where: {
-        managedBy,
+        managedById,
         users: {
           none: {
             user: {

@@ -302,11 +302,13 @@ export class TripHistoryService {
       where: { id: requesterId },
       select: { role: true },
     });
-    const managedBy = requester?.role ?? UserRole.ADMIN;
 
     const pagination = this.parsePagination(options);
     const whereAnd = this.buildFilters(options);
-    whereAnd.push({ truck: { managedBy } });
+
+    if (requester?.role !== UserRole.ADMIN) {
+      whereAnd.push({ truck: { managedById: requesterId } });
+    }
 
     return this.findWithWhere(whereAnd, pagination);
   }
@@ -334,9 +336,9 @@ export class TripHistoryService {
   async startTrip(userId: number, dto: StartTripDto, clientTimeZone?: string) {
     const driverUser = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { managedBy: true },
+      select: { managedById: true },
     });
-    const driverManagedBy = driverUser?.managedBy ?? UserRole.ADMIN;
+    const driverManagedById = driverUser?.managedById ?? null;
 
     const truck = await this.prisma.truck.findFirst({
       where: {
@@ -384,7 +386,7 @@ export class TripHistoryService {
     if (customDestinationName) {
       destination = await this.destinationService.findOrCreateActiveByName(
         customDestinationName,
-        driverManagedBy,
+        driverManagedById,
       );
     } else if (dto.destinationId) {
       destination = await this.prisma.destination.findUnique({
@@ -403,7 +405,7 @@ export class TripHistoryService {
     if (customEmployeeName) {
       const existingEmployee = await this.prisma.employee.findFirst({
         where: {
-          managedBy: driverManagedBy,
+          managedById: driverManagedById,
           name: {
             equals: customEmployeeName,
             mode: 'insensitive',
@@ -428,7 +430,7 @@ export class TripHistoryService {
           data: {
             name: customEmployeeName,
             active: true,
-            managedBy: driverManagedBy,
+            managedById: driverManagedById,
           },
           select: { id: true, name: true },
         });

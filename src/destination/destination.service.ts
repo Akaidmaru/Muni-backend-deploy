@@ -21,20 +21,21 @@ export type DestinationResponse = {
 export class DestinationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async getRequesterRole(requesterId: number): Promise<UserRole> {
+  private async getManagedById(requesterId: number): Promise<number | undefined> {
     const requester = await this.prisma.user.findUnique({
       where: { id: requesterId },
       select: { role: true },
     });
-    return requester?.role ?? UserRole.ADMIN;
+    if (requester?.role === UserRole.ADMIN) return undefined;
+    return requesterId;
   }
 
-  private async getUserManagedBy(userId: number): Promise<UserRole> {
+  private async getDriverManagedById(driverId: number): Promise<number | null> {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { managedBy: true },
+      where: { id: driverId },
+      select: { managedById: true },
     });
-    return user?.managedBy ?? UserRole.ADMIN;
+    return user?.managedById ?? null;
   }
 
   private async enrichDestinationWithTripsInfo(
@@ -111,16 +112,13 @@ export class DestinationService {
   }
 
   async create(requesterId: number, data: CreateDestinationDto): Promise<DestinationResponse> {
-    const managedBy = await this.getRequesterRole(requesterId);
+    const managedById = (await this.getManagedById(requesterId)) ?? null;
     const normalizedName = data.name.trim();
 
     const existing = await this.prisma.destination.findFirst({
       where: {
-        managedBy,
-        name: {
-          equals: normalizedName,
-          mode: 'insensitive',
-        },
+        managedById,
+        name: { equals: normalizedName, mode: 'insensitive' },
       },
     });
 
@@ -129,20 +127,14 @@ export class DestinationService {
     }
 
     const destination = await this.prisma.destination.create({
-      data: {
-        name: normalizedName,
-        active: data.active ?? true,
-        managedBy,
-      },
+      data: { name: normalizedName, active: data.active ?? true, managedById },
       select: this.destinationSelect,
     });
 
-    return await this.enrichDestinationWithTripsInfo(
-      destination as DestinationResponse,
-    );
+    return await this.enrichDestinationWithTripsInfo(destination as DestinationResponse);
   }
 
-  async findOrCreateActiveByName(name: string, managedBy: UserRole): Promise<DestinationResponse> {
+  async findOrCreateActiveByName(name: string, managedById: number | null): Promise<DestinationResponse> {
     const normalizedName = name.trim();
 
     if (normalizedName.length < 2 || normalizedName.length > 120) {
@@ -153,11 +145,8 @@ export class DestinationService {
 
     const existing = await this.prisma.destination.findFirst({
       where: {
-        managedBy,
-        name: {
-          equals: normalizedName,
-          mode: 'insensitive',
-        },
+        managedById,
+        name: { equals: normalizedName, mode: 'insensitive' },
       },
       select: this.destinationSelect,
     });
@@ -169,35 +158,23 @@ export class DestinationService {
           data: { active: true },
           select: this.destinationSelect,
         });
-
-        return await this.enrichDestinationWithTripsInfo(
-          updatedDestination as DestinationResponse,
-        );
+        return await this.enrichDestinationWithTripsInfo(updatedDestination as DestinationResponse);
       }
-
-      return await this.enrichDestinationWithTripsInfo(
-        existing as DestinationResponse,
-      );
+      return await this.enrichDestinationWithTripsInfo(existing as DestinationResponse);
     }
 
     const destination = await this.prisma.destination.create({
-      data: {
-        name: normalizedName,
-        active: true,
-        managedBy,
-      },
+      data: { name: normalizedName, active: true, managedById },
       select: this.destinationSelect,
     });
 
-    return await this.enrichDestinationWithTripsInfo(
-      destination as DestinationResponse,
-    );
+    return await this.enrichDestinationWithTripsInfo(destination as DestinationResponse);
   }
 
   async findAll(requesterId: number): Promise<DestinationResponse[]> {
-    const managedBy = await this.getRequesterRole(requesterId);
+    const managedById = await this.getManagedById(requesterId);
     const destinations = await this.prisma.destination.findMany({
-      where: { managedBy },
+      where: { managedById },
       orderBy: { name: 'asc' },
       select: this.destinationSelect,
     });
@@ -206,9 +183,9 @@ export class DestinationService {
   }
 
   async findAllActive(requesterId: number): Promise<DestinationResponse[]> {
-    const managedBy = await this.getUserManagedBy(requesterId);
+    const managedById = await this.getDriverManagedById(requesterId);
     const destinations = await this.prisma.destination.findMany({
-      where: { active: true, managedBy },
+      where: { active: true, managedById },
       orderBy: { name: 'asc' },
       select: this.destinationSelect,
     });
@@ -241,11 +218,11 @@ export class DestinationService {
       const normalizedName = data.name.trim();
       const current = await this.prisma.destination.findUnique({
         where: { id },
-        select: { managedBy: true },
+        select: { managedById: true },
       });
       const existing = await this.prisma.destination.findFirst({
         where: {
-          managedBy: current?.managedBy,
+          managedById: current?.managedById,
           name: {
             equals: normalizedName,
             mode: 'insensitive',

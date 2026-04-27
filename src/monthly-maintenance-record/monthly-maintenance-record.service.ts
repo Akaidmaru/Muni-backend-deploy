@@ -7,12 +7,13 @@ import { UpsertMonthlyMaintenanceRecordDto } from './dto';
 export class MonthlyMaintenanceRecordService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async getRequesterRole(requesterId: number): Promise<UserRole> {
+  private async getManagedById(requesterId: number): Promise<number | undefined> {
     const requester = await this.prisma.user.findUnique({
       where: { id: requesterId },
       select: { role: true },
     });
-    return requester?.role ?? UserRole.ADMIN;
+    if (requester?.role === UserRole.ADMIN) return undefined;
+    return requesterId;
   }
 
   private statusSeverity(status: string) {
@@ -87,9 +88,9 @@ export class MonthlyMaintenanceRecordService {
   }
 
   async findAllAdmin(requesterId: number) {
-    const managedBy = await this.getRequesterRole(requesterId);
+    const managedById = await this.getManagedById(requesterId);
     return await this.prisma.monthlyMaintenanceRecord.findMany({
-      where: { truck: { managedBy } },
+      where: managedById !== undefined ? { truck: { managedById } } : undefined,
       include: {
         truck: {
           select: {

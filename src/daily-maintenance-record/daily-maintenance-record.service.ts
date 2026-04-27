@@ -14,12 +14,13 @@ import {
 export class DailyMaintenanceRecordService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async getRequesterRole(requesterId: number): Promise<UserRole> {
+  private async getManagedById(requesterId: number): Promise<number | undefined> {
     const requester = await this.prisma.user.findUnique({
       where: { id: requesterId },
       select: { role: true },
     });
-    return requester?.role ?? UserRole.ADMIN;
+    if (requester?.role === UserRole.ADMIN) return undefined;
+    return requesterId;
   }
 
   private getUtcDayRange(date: Date) {
@@ -129,9 +130,9 @@ export class DailyMaintenanceRecordService {
    * Obtener todos los registros de mantenimiento
    */
   async findAll(requesterId: number) {
-    const managedBy = await this.getRequesterRole(requesterId);
+    const managedById = await this.getManagedById(requesterId);
     return await this.prisma.dailyMaintenanceRecord.findMany({
-      where: { truck: { managedBy } },
+      where: managedById !== undefined ? { truck: { managedById } } : undefined,
       include: {
         truck: {
           select: {

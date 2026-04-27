@@ -256,7 +256,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Eliminar registro de mantenimiento (solo ADMIN)' })
   @ApiResponse({
     status: 200,

@@ -8,87 +8,96 @@ datasource db {
 }
 
 model User {
-  id                      Int               @id @default(autoincrement())
-  email                   String            @unique
-  rut                     String            @unique
-  phone                   String?           @unique
+  id                      Int                      @id @default(autoincrement())
+  email                   String                   @unique
+  rut                     String                   @unique
+  phone                   String?                  @unique
   name                    String?
   password                String
-  createdAt               DateTime          @default(now())
-  role                    UserRole          @default(EMPLOYEE)
-  managedBy               UserRole          @default(ADMIN)
+  createdAt               DateTime                 @default(now())
+  role                    UserRole                 @default(EMPLOYEE)
+  managedById             Int?
+  managedByUser           User?                    @relation("UserManagedBy", fields: [managedById], references: [id])
+  managedUsers            User[]                   @relation("UserManagedBy")
+  managedEmployees        Employee[]
+  managedTrucks           Truck[]
+  managedDestinations     Destination[]
   occupationId            Int?
-  occupation              Occupation?      @relation(fields: [occupationId], references: [id])
+  occupation              Occupation?              @relation(fields: [occupationId], references: [id])
   trucks                  TruckAssignment[]
   dailyMaintenanceRecords DailyMaintenanceRecord[]
   problemReports          ProblemReport[]
   problemReportTimelines  ProblemReportTimeline[]
   plateChangeLogs         TruckPlateChangeLog[]
-  isVerified              Boolean          @default(false)
+  serviceRequests         ServiceRequest[]
+  isVerified              Boolean                  @default(false)
   tripHistoriesAsDriver   TripHistory[]
 }
 
 model Employee {
-  id           Int           @id @default(autoincrement())
-  name         String
-  active       Boolean       @default(true)
-  managedBy    UserRole      @default(ADMIN)
-  createdAt    DateTime      @default(now())
+  id            Int           @id @default(autoincrement())
+  name          String
+  active        Boolean       @default(true)
+  managedById   Int?
+  managedBy     User?         @relation(fields: [managedById], references: [id])
+  createdAt     DateTime      @default(now())
   tripHistories TripHistory[]
 
   @@index([name])
 }
 
 model Truck {
-  id                      Int               @id @default(autoincrement())
-  plate                   String            @unique
-  brand                   String?
-  model                   String
-  year                    Int?
-  seatCount               Int?
-  mileage                 Float            @default(0)
-  status                  TruckStatus      @default(ACTIVE)
-  managedBy               UserRole         @default(ADMIN)
-  technicalReviewExpiresAt DateTime?        @db.Date
-  circulationPermitExpiresAt DateTime?      @db.Date
-  insuranceExpiresAt      DateTime?         @db.Date
-  emissionsExpiresAt      DateTime?         @db.Date
-  users                   TruckAssignment[]
-  tripHistories           TripHistory[]
-  dailyMaintenanceRecords DailyMaintenanceRecord[]
-  monthlyMaintenanceRecords MonthlyMaintenanceRecord[]
-  plateChangeLogs         TruckPlateChangeLog[]
+  id                         Int                        @id @default(autoincrement())
+  plate                      String                     @unique
+  brand                      String?
+  model                      String
+  year                       Int?
+  seatCount                  Int?
+  mileage                    Float                      @default(0)
+  status                     TruckStatus                @default(ACTIVE)
+  managedById                Int?
+  managedBy                  User?                      @relation(fields: [managedById], references: [id])
+  technicalReviewExpiresAt   DateTime?                  @db.Date
+  circulationPermitExpiresAt DateTime?                  @db.Date
+  insuranceExpiresAt         DateTime?                  @db.Date
+  emissionsExpiresAt         DateTime?                  @db.Date
+  users                      TruckAssignment[]
+  tripHistories              TripHistory[]
+  dailyMaintenanceRecords    DailyMaintenanceRecord[]
+  monthlyMaintenanceRecords  MonthlyMaintenanceRecord[]
+  plateChangeLogs            TruckPlateChangeLog[]
 }
 
 model Destination {
-  id        Int      @id @default(autoincrement())
-  name      String
-  active    Boolean  @default(true)
-  managedBy UserRole @default(ADMIN)
-  createdAt DateTime @default(now())
+  id            Int           @id @default(autoincrement())
+  name          String
+  active        Boolean       @default(true)
+  managedById   Int?
+  managedBy     User?         @relation(fields: [managedById], references: [id])
+  createdAt     DateTime      @default(now())
   tripHistories TripHistory[]
 
-  @@unique([name, managedBy])
+  @@unique([name, managedById])
 }
 
 model TripHistory {
-  id            Int         @id @default(autoincrement())
+  id            Int                @id @default(autoincrement())
   date          DateTime
   startTime     String
   endTime       String?
-  status        TripHistoryStatus @default(DRIVER_FILLING)
+  status        TripHistoryStatus  @default(DRIVER_FILLING)
   startKm       Float
   endKm         Float?
-  signatureKey  String?     @map("signature_key")
+  signatureKey  String?            @map("signature_key")
   truckId       Int
   destinationId Int
   employeeId    Int
   driverId      Int?
-  truck         Truck       @relation(fields: [truckId], references: [id])
-  destination   Destination @relation(fields: [destinationId], references: [id])
-  employee      Employee    @relation(fields: [employeeId], references: [id])
-  driver        User?       @relation(fields: [driverId], references: [id])
-  createdAt     DateTime    @default(now())
+  truck         Truck              @relation(fields: [truckId], references: [id])
+  destination   Destination        @relation(fields: [destinationId], references: [id])
+  employee      Employee           @relation(fields: [employeeId], references: [id])
+  driver        User?              @relation(fields: [driverId], references: [id])
+  createdAt     DateTime           @default(now())
   points        TripHistoryPoint[]
 
   @@index([date])
@@ -121,17 +130,17 @@ model TruckAssignment {
 }
 
 model TruckPlateChangeLog {
-  id              Int                   @id @default(autoincrement())
+  id              Int               @id @default(autoincrement())
   truckId         Int
   changedByUserId Int
   reason          PlateChangeReason
   observations    String
   previousStatus  TruckStatus
   newStatus       TruckStatus
-  createdAt       DateTime              @default(now())
+  createdAt       DateTime          @default(now())
 
-  truck           Truck                 @relation(fields: [truckId], references: [id], onDelete: Cascade)
-  changedBy       User                  @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
+  truck     Truck @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  changedBy User  @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
 
   @@index([truckId])
   @@index([changedByUserId])
@@ -139,29 +148,29 @@ model TruckPlateChangeLog {
 }
 
 model Occupation {
-  id   Int    @id @default(autoincrement())
-  name String
+  id    Int    @id @default(autoincrement())
+  name  String
   users User[]
 }
 
 model DailyMaintenanceRecord {
-  id                        Int     @id @default(autoincrement())
-  truckId                   Int
-  driverId                  Int
-  inspectionDate            DateTime @db.Date
-  inspectionTime            String
-  municipalLicense          String
-  currentMileage            Float
-  status                    DailyMaintenanceRecordStatus @default(PENDING)
-  
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-  
+  id               Int                          @id @default(autoincrement())
+  truckId          Int
+  driverId         Int
+  inspectionDate   DateTime                     @db.Date
+  inspectionTime   String
+  municipalLicense String
+  currentMileage   Float
+  status           DailyMaintenanceRecordStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relaciones
-  truck                     Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
-  driver                    User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  dailyMaintenanceItems     DailyMaintenanceItem[]
-  
+  truck                 Truck                  @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  driver                User                   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  dailyMaintenanceItems DailyMaintenanceItem[]
+
   // Índice compuesto: una vez por vehículo/día
   @@unique([truckId, inspectionDate])
   @@index([truckId])
@@ -171,31 +180,31 @@ model DailyMaintenanceRecord {
 }
 
 model DailyMaintenanceItem {
-  id          Int     @id @default(autoincrement())
-  recordId    Int
-  itemCode    String  // "estacionamiento", "frenoMano", etc.
-  itemName    String
-  category    String  // "systemLights", "systemBrakes", "systemTires", etc.
-  exists      String  // "Si", "No"
-  status      String  // "Bueno", "Regular", "Malo"
-  notes       String?
-  
-  record      DailyMaintenanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  
-  @@index([recordId])
+  id       Int     @id @default(autoincrement())
+  recordId Int
+  itemCode String // "estacionamiento", "frenoMano", etc.
+  itemName String
+  category String // "systemLights", "systemBrakes", "systemTires", etc.
+  exists   String // "Si", "No"
+  status   String // "Bueno", "Regular", "Malo"
+  notes    String?
+
+  record DailyMaintenanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
   @@unique([recordId, itemCode])
+  @@index([recordId])
   @@map("DailyMaintenanceItem")
 }
 
 model MonthlyMaintenanceRecord {
-  id                      Int     @id @default(autoincrement())
-  truckId                 Int
-  monthKey                String  // Formato YYYY-MM
-  status                  MonthlyMaintenanceRecordStatus @default(PENDING)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id        Int                            @id @default(autoincrement())
+  truckId   Int
+  monthKey  String // Formato YYYY-MM
+  status    MonthlyMaintenanceRecordStatus @default(PENDING)
+  createdAt DateTime                       @default(now())
+  updatedAt DateTime                       @updatedAt
 
-  truck                   Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  truck                   Truck                    @relation(fields: [truckId], references: [id], onDelete: Cascade)
   monthlyMaintenanceItems MonthlyMaintenanceItem[]
 
   @@unique([truckId, monthKey])
@@ -205,34 +214,34 @@ model MonthlyMaintenanceRecord {
 }
 
 model MonthlyMaintenanceItem {
-  id          Int     @id @default(autoincrement())
-  recordId    Int
-  weekIndex   Int     // 1..5
-  itemCode    String
-  itemName    String
-  category    String
-  status      String
-  notes       String?
+  id        Int     @id @default(autoincrement())
+  recordId  Int
+  weekIndex Int // 1..5
+  itemCode  String
+  itemName  String
+  category  String
+  status    String
+  notes     String?
 
-  record      MonthlyMaintenanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  record MonthlyMaintenanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
 
+  @@unique([recordId, weekIndex, itemCode])
   @@index([recordId])
   @@index([weekIndex])
-  @@unique([recordId, weekIndex, itemCode])
   @@map("MonthlyMaintenanceItem")
 }
 
 model ProblemReport {
-  id            Int                @id @default(autoincrement())
+  id            Int                     @id @default(autoincrement())
   title         String
   description   String
-  screenshotKey String?            @map("screenshot_key")
-  status        ProblemReportStatus @default(OPEN)
+  screenshotKey String?                 @map("screenshot_key")
+  status        ProblemReportStatus     @default(OPEN)
   reporterId    Int
-  reporter      User               @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  reporter      User                    @relation(fields: [reporterId], references: [id], onDelete: Cascade)
   timeline      ProblemReportTimeline[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
 
   @@index([reporterId])
   @@index([status])
@@ -240,20 +249,39 @@ model ProblemReport {
 }
 
 model ProblemReportTimeline {
-  id             Int                      @id @default(autoincrement())
+  id             Int                    @id @default(autoincrement())
   reportId       Int
   actorId        Int
   eventType      ProblemReportEventType
   previousStatus ProblemReportStatus
   newStatus      ProblemReportStatus
   note           String?
-  createdAt      DateTime                 @default(now())
+  createdAt      DateTime               @default(now())
 
-  report         ProblemReport            @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  actor          User                     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  report ProblemReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor  User          @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
   @@index([actorId])
+  @@index([createdAt])
+}
+
+model ServiceRequest {
+  id             Int      @id @default(autoincrement())
+  requestType    String
+  driverAction   String?
+  personName     String?
+  plate          String?
+  reason         String?
+  attachmentKey  String?  @map("attachment_key")
+  status         String   @default("PENDING")
+  requesterId    Int
+  requester      User     @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([requesterId])
+  @@index([status])
   @@index([createdAt])
 }
 

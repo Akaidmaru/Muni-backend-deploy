@@ -36,6 +36,15 @@ export class UserService {
     private readonly redisService: RedisService,
   ) {}
 
+  private async getManagedById(requesterId: number): Promise<number | undefined> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    if (requester?.role === UserRole.ADMIN) return undefined;
+    return requesterId;
+  }
+
   async findByRoles(
     requesterId: number,
     roles?: UserRole[],
@@ -66,9 +75,11 @@ export class UserService {
         ? requestedRoles
         : requestedRoles.filter((role) => role !== UserRole.ADMIN);
 
+    const managedById = requester.role === UserRole.ADMIN ? undefined : requesterId;
+
     return this.prisma.user.findMany({
       where: {
-        managedBy: requester.role,
+        managedById,
         role: { in: allowedRoles },
       },
       select: {
@@ -133,11 +144,7 @@ export class UserService {
   }
 
   async adminCreate(requesterId: number, dto: AdminCreateUserDto) {
-    const requester = await this.prisma.user.findUnique({
-      where: { id: requesterId },
-      select: { role: true },
-    });
-    const managedBy = requester?.role ?? UserRole.ADMIN;
+    const managedById = (await this.getManagedById(requesterId)) ?? null;
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
     });
@@ -179,27 +186,23 @@ export class UserService {
         phone: normalizedPhone,
         password: hashedPassword,
         isVerified: true,
-        managedBy,
+        managedById,
       },
     });
   }
 
   async findAll(requesterId: number, page = 1, pageSize = 50) {
-    const requester = await this.prisma.user.findUnique({
-      where: { id: requesterId },
-      select: { role: true },
-    });
-    const managedBy = requester?.role ?? UserRole.ADMIN;
+    const managedById = await this.getManagedById(requesterId);
     const safePage = page > 0 ? page : 1;
     const safePageSize = Math.min(pageSize > 0 ? pageSize : 50, 200);
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
-        where: { managedBy },
+        where: { managedById },
         skip: (safePage - 1) * safePageSize,
         take: safePageSize,
         orderBy: { id: 'asc' },
       }),
-      this.prisma.user.count({ where: { managedBy } }),
+      this.prisma.user.count({ where: { managedById } }),
     ]);
     return { items, total, page: safePage, pageSize: safePageSize };
   }
@@ -257,14 +260,10 @@ export class UserService {
         "El parámetro 'status' es requerido y debe ser 'true' o 'false'.",
       );
     }
-    const requester = await this.prisma.user.findUnique({
-      where: { id: requesterId },
-      select: { role: true },
-    });
-    const managedBy = requester?.role ?? UserRole.ADMIN;
+    const managedById = await this.getManagedById(requesterId);
     const isVerified = status === 'true';
     return this.prisma.user.findMany({
-      where: { isVerified, managedBy },
+      where: { isVerified, managedById },
     });
   }
 

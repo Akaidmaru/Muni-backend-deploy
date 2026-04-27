@@ -19,37 +19,39 @@ export type EmployeeResponse = {
 export class EmployeeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async getRequesterRole(requesterId: number): Promise<UserRole> {
+  private async getManagedById(requesterId: number): Promise<number | undefined> {
     const requester = await this.prisma.user.findUnique({
       where: { id: requesterId },
       select: { role: true },
     });
-    return requester?.role ?? UserRole.ADMIN;
+    if (requester?.role === UserRole.ADMIN) return undefined;
+    return requesterId;
   }
 
   async findActive(requesterId: number): Promise<EmployeeResponse[]> {
-    const managedBy = await this.getRequesterRole(requesterId);
+    const managedById = await this.getManagedById(requesterId);
     return this.prisma.employee.findMany({
-      where: { active: true, managedBy },
+      where: { active: true, managedById },
       orderBy: { name: 'asc' },
     });
   }
 
   async findAll(requesterId: number): Promise<EmployeeResponse[]> {
-    const managedBy = await this.getRequesterRole(requesterId);
+    const managedById = await this.getManagedById(requesterId);
     return this.prisma.employee.findMany({
-      where: { managedBy },
+      where: { managedById },
       orderBy: [{ active: 'desc' }, { name: 'asc' }],
     });
   }
 
   async create(requesterId: number, dto: CreateEmployeeDto): Promise<EmployeeResponse> {
-    const managedBy = await this.getRequesterRole(requesterId);
+    const managedById = await this.getManagedById(requesterId);
+    const storedManagedById = managedById ?? null;
     const normalizedName = dto.name.trim();
 
     const existing = await this.prisma.employee.findFirst({
       where: {
-        managedBy,
+        managedById: storedManagedById,
         name: { equals: normalizedName, mode: 'insensitive' },
       },
       select: { id: true, active: true },
@@ -67,7 +69,7 @@ export class EmployeeService {
     }
 
     return this.prisma.employee.create({
-      data: { name: normalizedName, active: true, managedBy },
+      data: { name: normalizedName, active: true, managedById: storedManagedById },
     });
   }
 
