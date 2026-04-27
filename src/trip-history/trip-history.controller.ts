@@ -34,8 +34,9 @@ export class TripHistoryController {
 
   @Get('admin')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   async findAll(
+    @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('from') from?: string,
@@ -48,7 +49,7 @@ export class TripHistoryController {
     const parsedPage = Number(page) || 1;
     const parsedPageSize = Number(pageSize) || 10;
 
-    const tripHistories: unknown = await this.tripHistoryService.findAll({
+    const tripHistories: unknown = await this.tripHistoryService.findAll(req.user.id, {
       page: parsedPage,
       pageSize: parsedPageSize,
       from,
@@ -129,7 +130,7 @@ export class TripHistoryController {
 
   @Get(':id/map-route')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   async getAdminRoute(@Param('id', ParseIntPipe) id: number): Promise<unknown> {
     const route: unknown = await this.tripHistoryService.getAdminRoute(id);
     return route;
@@ -153,7 +154,7 @@ export class TripHistoryController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   async updateByAdmin(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTripHistoryDto,
@@ -168,7 +169,7 @@ export class TripHistoryController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     await this.tripHistoryService.remove(id);
   }

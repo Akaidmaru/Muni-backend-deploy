@@ -16,6 +16,7 @@ model User {
   password                String
   createdAt               DateTime          @default(now())
   role                    UserRole          @default(EMPLOYEE)
+  managedBy               UserRole          @default(ADMIN)
   occupationId            Int?
   occupation              Occupation?      @relation(fields: [occupationId], references: [id])
   trucks                  TruckAssignment[]
@@ -31,6 +32,7 @@ model Employee {
   id           Int           @id @default(autoincrement())
   name         String
   active       Boolean       @default(true)
+  managedBy    UserRole      @default(ADMIN)
   createdAt    DateTime      @default(now())
   tripHistories TripHistory[]
 
@@ -46,6 +48,7 @@ model Truck {
   seatCount               Int?
   mileage                 Float            @default(0)
   status                  TruckStatus      @default(ACTIVE)
+  managedBy               UserRole         @default(ADMIN)
   technicalReviewExpiresAt DateTime?        @db.Date
   circulationPermitExpiresAt DateTime?      @db.Date
   insuranceExpiresAt      DateTime?         @db.Date
@@ -59,10 +62,13 @@ model Truck {
 
 model Destination {
   id        Int      @id @default(autoincrement())
-  name      String   @unique
+  name      String
   active    Boolean  @default(true)
+  managedBy UserRole @default(ADMIN)
   createdAt DateTime @default(now())
   tripHistories TripHistory[]
+
+  @@unique([name, managedBy])
 }
 
 model TripHistory {
@@ -256,6 +262,7 @@ enum UserRole {
   EMPLOYEE
   DRIVER
   ADMIN
+  DIRECTION
 }
 
 enum TruckStatus {

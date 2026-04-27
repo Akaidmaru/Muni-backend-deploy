@@ -1,11 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { MonthlyMaintenanceRecordStatus } from '@prisma/client';
+import { MonthlyMaintenanceRecordStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertMonthlyMaintenanceRecordDto } from './dto';
 
 @Injectable()
 export class MonthlyMaintenanceRecordService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async getRequesterRole(requesterId: number): Promise<UserRole> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    return requester?.role ?? UserRole.ADMIN;
+  }
 
   private statusSeverity(status: string) {
     const normalized = String(status || '').trim().toLowerCase();
@@ -78,8 +86,10 @@ export class MonthlyMaintenanceRecordService {
     return { year, monthNum };
   }
 
-  async findAllAdmin() {
+  async findAllAdmin(requesterId: number) {
+    const managedBy = await this.getRequesterRole(requesterId);
     return await this.prisma.monthlyMaintenanceRecord.findMany({
+      where: { truck: { managedBy } },
       include: {
         truck: {
           select: {

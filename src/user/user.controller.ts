@@ -125,7 +125,7 @@ export class UserController {
 
   @Get('verified')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Listar usuarios verificados | Status (true || false) | (ADMIN) ',
@@ -144,13 +144,16 @@ export class UserController {
       },
     },
   })
-  async getUsersByVerificationStatus(@Query('status') status: string) {
-    return this.userService.findByVerificationStatus(status);
+  async getUsersByVerificationStatus(
+    @Req() req: AuthenticatedRequest,
+    @Query('status') status: string,
+  ) {
+    return this.userService.findByVerificationStatus(Number(req.user.id), status);
   }
 
   @Get(':id/trucks')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Listar camiones asignados a un usuario (ADMIN)' })
   @ApiResponse({
@@ -172,7 +175,7 @@ export class UserController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear usuario por administrador' })
   @ApiResponse({
@@ -185,13 +188,13 @@ export class UserController {
       },
     },
   })
-  adminCreate(@Body() dto: AdminCreateUserDto) {
-    return this.userService.adminCreate(dto);
+  adminCreate(@Req() req: AuthenticatedRequest, @Body() dto: AdminCreateUserDto) {
+    return this.userService.adminCreate(Number(req.user.id), dto);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Listar todos los usuarios (ADMIN)' })
   @ApiResponse({
@@ -208,10 +211,12 @@ export class UserController {
     },
   })
   findAll(
+    @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.userService.findAll(
+      Number(req.user.id),
       page ? Number(page) : undefined,
       pageSize ? Number(pageSize) : undefined,
     );
@@ -219,7 +224,7 @@ export class UserController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener usuario por ID (ADMIN)' })
   @ApiResponse({
@@ -261,7 +266,7 @@ export class UserController {
 
   @Patch(':id/reset-password')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Restablecer contraseña de un usuario (ADMIN)' })
   @ApiResponse({
@@ -303,14 +308,14 @@ export class UserController {
     },
   })
   @ApiBearerAuth()
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   adminUpdateUser(@Param('id') id: string, @Body() dto: AdminUpdateUserDto) {
     return this.userService.adminUpdateUser(Number(id), dto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRECTION')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Eliminar usuario por administrador' })
   @ApiResponse({

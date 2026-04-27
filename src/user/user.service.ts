@@ -68,9 +68,8 @@ export class UserService {
 
     return this.prisma.user.findMany({
       where: {
-        role: {
-          in: allowedRoles,
-        },
+        managedBy: requester.role,
+        role: { in: allowedRoles },
       },
       select: {
         id: true,
@@ -133,7 +132,12 @@ export class UserService {
     }
   }
 
-  async adminCreate(dto: AdminCreateUserDto) {
+  async adminCreate(requesterId: number, dto: AdminCreateUserDto) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    const managedBy = requester?.role ?? UserRole.ADMIN;
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
     });
@@ -175,20 +179,27 @@ export class UserService {
         phone: normalizedPhone,
         password: hashedPassword,
         isVerified: true,
+        managedBy,
       },
     });
   }
 
-  async findAll(page = 1, pageSize = 50) {
+  async findAll(requesterId: number, page = 1, pageSize = 50) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    const managedBy = requester?.role ?? UserRole.ADMIN;
     const safePage = page > 0 ? page : 1;
     const safePageSize = Math.min(pageSize > 0 ? pageSize : 50, 200);
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
+        where: { managedBy },
         skip: (safePage - 1) * safePageSize,
         take: safePageSize,
         orderBy: { id: 'asc' },
       }),
-      this.prisma.user.count(),
+      this.prisma.user.count({ where: { managedBy } }),
     ]);
     return { items, total, page: safePage, pageSize: safePageSize };
   }
@@ -237,7 +248,7 @@ export class UserService {
     });
   }
 
-  async findByVerificationStatus(status: string) {
+  async findByVerificationStatus(requesterId: number, status: string) {
     if (
       typeof status !== 'string' ||
       (status !== 'true' && status !== 'false')
@@ -246,9 +257,14 @@ export class UserService {
         "El parámetro 'status' es requerido y debe ser 'true' o 'false'.",
       );
     }
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    const managedBy = requester?.role ?? UserRole.ADMIN;
     const isVerified = status === 'true';
     return this.prisma.user.findMany({
-      where: { isVerified },
+      where: { isVerified, managedBy },
     });
   }
 

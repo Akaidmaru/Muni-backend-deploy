@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { UserRole } from '@prisma/client';
 
 export type EmployeeResponse = {
   id: number;
@@ -18,28 +19,38 @@ export type EmployeeResponse = {
 export class EmployeeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findActive(): Promise<EmployeeResponse[]> {
+  private async getRequesterRole(requesterId: number): Promise<UserRole> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    return requester?.role ?? UserRole.ADMIN;
+  }
+
+  async findActive(requesterId: number): Promise<EmployeeResponse[]> {
+    const managedBy = await this.getRequesterRole(requesterId);
     return this.prisma.employee.findMany({
-      where: { active: true },
+      where: { active: true, managedBy },
       orderBy: { name: 'asc' },
     });
   }
 
-  async findAll(): Promise<EmployeeResponse[]> {
+  async findAll(requesterId: number): Promise<EmployeeResponse[]> {
+    const managedBy = await this.getRequesterRole(requesterId);
     return this.prisma.employee.findMany({
+      where: { managedBy },
       orderBy: [{ active: 'desc' }, { name: 'asc' }],
     });
   }
 
-  async create(dto: CreateEmployeeDto): Promise<EmployeeResponse> {
+  async create(requesterId: number, dto: CreateEmployeeDto): Promise<EmployeeResponse> {
+    const managedBy = await this.getRequesterRole(requesterId);
     const normalizedName = dto.name.trim();
 
     const existing = await this.prisma.employee.findFirst({
       where: {
-        name: {
-          equals: normalizedName,
-          mode: 'insensitive',
-        },
+        managedBy,
+        name: { equals: normalizedName, mode: 'insensitive' },
       },
       select: { id: true, active: true },
     });
@@ -56,10 +67,7 @@ export class EmployeeService {
     }
 
     return this.prisma.employee.create({
-      data: {
-        name: normalizedName,
-        active: true,
-      },
+      data: { name: normalizedName, active: true, managedBy },
     });
   }
 

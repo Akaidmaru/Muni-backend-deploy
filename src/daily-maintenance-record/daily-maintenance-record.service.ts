@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { DailyMaintenanceRecordStatus, Prisma } from '@prisma/client';
+import { DailyMaintenanceRecordStatus, Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateDailyMaintenanceRecordDto,
@@ -13,6 +13,14 @@ import {
 @Injectable()
 export class DailyMaintenanceRecordService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async getRequesterRole(requesterId: number): Promise<UserRole> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    return requester?.role ?? UserRole.ADMIN;
+  }
 
   private getUtcDayRange(date: Date) {
     const startOfDay = new Date(date);
@@ -120,8 +128,10 @@ export class DailyMaintenanceRecordService {
   /**
    * Obtener todos los registros de mantenimiento
    */
-  async findAll() {
+  async findAll(requesterId: number) {
+    const managedBy = await this.getRequesterRole(requesterId);
     return await this.prisma.dailyMaintenanceRecord.findMany({
+      where: { truck: { managedBy } },
       include: {
         truck: {
           select: {

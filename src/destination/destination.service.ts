@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TripHistoryStatus } from '@prisma/client';
+import { TripHistoryStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDestinationDto } from './dto/create-destination.dto';
 import { UpdateDestinationDto } from './dto/update-destination.dto';
@@ -20,6 +20,22 @@ export type DestinationResponse = {
 @Injectable()
 export class DestinationService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async getRequesterRole(requesterId: number): Promise<UserRole> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    return requester?.role ?? UserRole.ADMIN;
+  }
+
+  private async getUserManagedBy(userId: number): Promise<UserRole> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { managedBy: true },
+    });
+    return user?.managedBy ?? UserRole.ADMIN;
+  }
 
   private async enrichDestinationWithTripsInfo(
     destination: DestinationResponse,
@@ -94,11 +110,13 @@ export class DestinationService {
     };
   }
 
-  async create(data: CreateDestinationDto): Promise<DestinationResponse> {
+  async create(requesterId: number, data: CreateDestinationDto): Promise<DestinationResponse> {
+    const managedBy = await this.getRequesterRole(requesterId);
     const normalizedName = data.name.trim();
 
     const existing = await this.prisma.destination.findFirst({
       where: {
+        managedBy,
         name: {
           equals: normalizedName,
           mode: 'insensitive',
@@ -114,6 +132,7 @@ export class DestinationService {
       data: {
         name: normalizedName,
         active: data.active ?? true,
+        managedBy,
       },
       select: this.destinationSelect,
     });
@@ -123,7 +142,7 @@ export class DestinationService {
     );
   }
 
-  async findOrCreateActiveByName(name: string): Promise<DestinationResponse> {
+  async findOrCreateActiveByName(name: string, managedBy: UserRole): Promise<DestinationResponse> {
     const normalizedName = name.trim();
 
     if (normalizedName.length < 2 || normalizedName.length > 120) {
@@ -134,6 +153,7 @@ export class DestinationService {
 
     const existing = await this.prisma.destination.findFirst({
       where: {
+        managedBy,
         name: {
           equals: normalizedName,
           mode: 'insensitive',
@@ -164,6 +184,7 @@ export class DestinationService {
       data: {
         name: normalizedName,
         active: true,
+        managedBy,
       },
       select: this.destinationSelect,
     });
@@ -173,8 +194,10 @@ export class DestinationService {
     );
   }
 
-  async findAll(): Promise<DestinationResponse[]> {
+  async findAll(requesterId: number): Promise<DestinationResponse[]> {
+    const managedBy = await this.getRequesterRole(requesterId);
     const destinations = await this.prisma.destination.findMany({
+      where: { managedBy },
       orderBy: { name: 'asc' },
       select: this.destinationSelect,
     });
@@ -182,9 +205,10 @@ export class DestinationService {
     return this.enrichManyDestinationsWithTripsInfo(destinations as DestinationResponse[]);
   }
 
-  async findAllActive(): Promise<DestinationResponse[]> {
+  async findAllActive(requesterId: number): Promise<DestinationResponse[]> {
+    const managedBy = await this.getUserManagedBy(requesterId);
     const destinations = await this.prisma.destination.findMany({
-      where: { active: true },
+      where: { active: true, managedBy },
       orderBy: { name: 'asc' },
       select: this.destinationSelect,
     });
@@ -215,8 +239,13 @@ export class DestinationService {
 
     if (data.name) {
       const normalizedName = data.name.trim();
+      const current = await this.prisma.destination.findUnique({
+        where: { id },
+        select: { managedBy: true },
+      });
       const existing = await this.prisma.destination.findFirst({
         where: {
+          managedBy: current?.managedBy,
           name: {
             equals: normalizedName,
             mode: 'insensitive',
