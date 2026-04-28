@@ -4,16 +4,150 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
 import { AssignUserDto } from './dto/assign-user.dto';
-import { Prisma, PlateChangeReason, TruckStatus, UserRole } from '@prisma/client';
+import {
+  Prisma,
+  PlateChangeReason,
+  TruckDocumentType,
+  TruckStatus,
+  UserRole,
+} from '@prisma/client';
 import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
+import { S3Service } from '../common/s3.service';
+import { UploadTruckDocumentDto } from './dto/upload-truck-document.dto';
+
+type UploadedTruckDocumentFile = {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+  originalname: string;
+};
 
 @Injectable()
 export class TruckService {
-  constructor(private prisma: PrismaService) {}
+  private readonly maxDocumentBytes = 20 * 1024 * 1024;
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly s3Service: S3Service,
+  ) {}
+
+  private readonly truckDocumentSelect = {
+    id: true,
+    truckId: true,
+    documentType: true,
+    bucketKey: true,
+    uploadedAt: true,
+  } as const;
+
+  private parseDocumentType(value: string): TruckDocumentType {
+    const normalized = String(value || '').trim().toUpperCase();
+    const allowed = Object.values(TruckDocumentType) as string[];
+
+    if (!allowed.includes(normalized)) {
+      throw new BadRequestException('Tipo de documento no valido.');
+    }
+
+    return normalized as TruckDocumentType;
+  }
+
+  private resolveExpiryDateByType(
+    truck: Pick<
+      Prisma.TruckGetPayload<{
+        select: {
+          technicalReviewExpiresAt: true;
+          circulationPermitExpiresAt: true;
+          insuranceExpiresAt: true;
+          emissionsExpiresAt: true;
+        };
+      }>,
+      | 'technicalReviewExpiresAt'
+      | 'circulationPermitExpiresAt'
+      | 'insuranceExpiresAt'
+      | 'emissionsExpiresAt'
+    >,
+    documentType: TruckDocumentType,
+  ) {
+    switch (documentType) {
+      case TruckDocumentType.TECHNICAL_REVIEW:
+        return truck.technicalReviewExpiresAt;
+      case TruckDocumentType.CIRCULATION_PERMIT:
+        return truck.circulationPermitExpiresAt;
+      case TruckDocumentType.INSURANCE:
+        return truck.insuranceExpiresAt;
+      case TruckDocumentType.EMISSIONS:
+        return truck.emissionsExpiresAt;
+      default:
+        return null;
+    }
+  }
+
+  private getDocumentExtension(file: UploadedTruckDocumentFile): string {
+    const normalized = (file.mimetype || '').toLowerCase().trim();
+    const byMimeType: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/webp': 'webp',
+    };
+
+    const extension = byMimeType[normalized];
+    if (!extension) {
+      throw new BadRequestException(
+        'Solo se permiten archivos PDF o imagenes PNG, JPEG o WEBP.',
+      );
+    }
+
+    return extension;
+  }
+
+  private buildDocumentKey(
+    truckId: number,
+    documentType: TruckDocumentType,
+    file: UploadedTruckDocumentFile,
+  ): string {
+    const extension = this.getDocumentExtension(file);
+    return `truck-documents/${truckId}/${documentType.toLowerCase()}-${randomUUID()}.${extension}`;
+  }
+
+  private validateDocumentFile(file?: UploadedTruckDocumentFile) {
+    if (!file) {
+      throw new BadRequestException('Debes adjuntar un archivo.');
+    }
+
+    if (file.size > this.maxDocumentBytes) {
+      throw new BadRequestException(
+        'El archivo no puede superar los 20 MB.',
+      );
+    }
+
+    this.getDocumentExtension(file);
+  }
+
+  private formatTruckDocumentResponse(
+    document: {
+      id: number;
+      truckId: number;
+      documentType: TruckDocumentType;
+      bucketKey: string;
+      uploadedAt: Date;
+    },
+    expiresAt: Date | null | undefined,
+  ) {
+    return {
+      id: document.id,
+      truckId: document.truckId,
+      documentType: document.documentType,
+      bucketKey: document.bucketKey,
+      uploadedAt: document.uploadedAt,
+      expiresAt: expiresAt ?? null,
+    };
+  }
 
   private sanitizeTruckCreateInput(
     dto: CreateTruckDto,
@@ -178,6 +312,161 @@ export class TruckService {
     }
 
     return truck;
+  }
+
+  async getDocuments(truckId: number) {
+    const truck = await this.prisma.truck.findUnique({
+      where: { id: truckId },
+      select: {
+        id: true,
+        technicalReviewExpiresAt: true,
+        circulationPermitExpiresAt: true,
+        insuranceExpiresAt: true,
+        emissionsExpiresAt: true,
+        documents: {
+          orderBy: { documentType: 'asc' },
+          select: this.truckDocumentSelect,
+        },
+      },
+    });
+
+    if (!truck) {
+      throw new NotFoundException(`Camión con ID ${truckId} no encontrado`);
+    }
+
+    return truck.documents.map((document) =>
+      this.formatTruckDocumentResponse(
+        document,
+        this.resolveExpiryDateByType(truck, document.documentType),
+      ),
+    );
+  }
+
+  async getDocumentUrl(truckId: number, documentTypeValue: string) {
+    const documentType = this.parseDocumentType(documentTypeValue);
+
+    const document = await this.prisma.truckDocument.findUnique({
+      where: {
+        truckId_documentType: {
+          truckId,
+          documentType,
+        },
+      },
+      select: this.truckDocumentSelect,
+    });
+
+    if (!document) {
+      throw new NotFoundException('Documento del vehiculo no encontrado.');
+    }
+
+    return {
+      truckId: document.truckId,
+      documentType: document.documentType,
+      bucketKey: document.bucketKey,
+      url: await this.s3Service.getSignedGetUrl(document.bucketKey),
+    };
+  }
+
+  async uploadDocument(
+    truckId: number,
+    dto: UploadTruckDocumentDto,
+    file?: UploadedTruckDocumentFile,
+  ) {
+    this.validateDocumentFile(file);
+
+    const truck = await this.prisma.truck.findUnique({
+      where: { id: truckId },
+      select: {
+        id: true,
+        technicalReviewExpiresAt: true,
+        circulationPermitExpiresAt: true,
+        insuranceExpiresAt: true,
+        emissionsExpiresAt: true,
+      },
+    });
+
+    if (!truck) {
+      throw new NotFoundException(`Camión con ID ${truckId} no encontrado`);
+    }
+
+    const newBucketKey = this.buildDocumentKey(truckId, dto.documentType, file!);
+    await this.s3Service.uploadAttachmentBuffer({
+      buffer: file!.buffer,
+      contentType: file!.mimetype,
+      key: newBucketKey,
+    });
+
+    const existing = await this.prisma.truckDocument.findUnique({
+      where: {
+        truckId_documentType: {
+          truckId,
+          documentType: dto.documentType,
+        },
+      },
+      select: this.truckDocumentSelect,
+    });
+
+    try {
+      const document = await this.prisma.truckDocument.upsert({
+        where: {
+          truckId_documentType: {
+            truckId,
+            documentType: dto.documentType,
+          },
+        },
+        create: {
+          truckId,
+          documentType: dto.documentType,
+          bucketKey: newBucketKey,
+        },
+        update: {
+          bucketKey: newBucketKey,
+          uploadedAt: new Date(),
+        },
+        select: this.truckDocumentSelect,
+      });
+
+      if (existing?.bucketKey && existing.bucketKey !== newBucketKey) {
+        await this.s3Service.deleteObject(existing.bucketKey);
+      }
+
+      return this.formatTruckDocumentResponse(
+        document,
+        this.resolveExpiryDateByType(truck, document.documentType),
+      );
+    } catch (error) {
+      await this.s3Service.deleteObject(newBucketKey);
+      throw error;
+    }
+  }
+
+  async removeDocument(truckId: number, documentId: number) {
+    const document = await this.prisma.truckDocument.findFirst({
+      where: {
+        id: documentId,
+        truckId,
+      },
+      select: this.truckDocumentSelect,
+    });
+
+    if (!document) {
+      throw new NotFoundException('Documento del vehiculo no encontrado.');
+    }
+
+    await this.prisma.truckDocument.delete({
+      where: {
+        id: documentId,
+      },
+    });
+
+    await this.s3Service.deleteObject(document.bucketKey);
+
+    return {
+      message: 'Documento eliminado correctamente.',
+      id: document.id,
+      truckId: document.truckId,
+      documentType: document.documentType,
+    };
   }
 
   async update(id: number, dto: UpdateTruckDto) {

@@ -62,10 +62,25 @@ model Truck {
   insuranceExpiresAt         DateTime?                  @db.Date
   emissionsExpiresAt         DateTime?                  @db.Date
   users                      TruckAssignment[]
+  documents                  TruckDocument[]
   tripHistories              TripHistory[]
   dailyMaintenanceRecords    DailyMaintenanceRecord[]
   monthlyMaintenanceRecords  MonthlyMaintenanceRecord[]
   plateChangeLogs            TruckPlateChangeLog[]
+}
+
+model TruckDocument {
+  id           Int               @id @default(autoincrement())
+  truckId      Int
+  documentType TruckDocumentType
+  bucketKey    String
+  uploadedAt   DateTime          @default(now())
+
+  truck Truck @relation(fields: [truckId], references: [id], onDelete: Cascade)
+
+  @@unique([truckId, documentType])
+  @@index([truckId])
+  @@index([documentType])
 }
 
 model Destination {
@@ -296,6 +311,13 @@ enum UserRole {
 enum TruckStatus {
   ACTIVE
   INACTIVE
+}
+
+enum TruckDocumentType {
+  TECHNICAL_REVIEW
+  CIRCULATION_PERMIT
+  INSURANCE
+  EMISSIONS
 }
 
 enum PlateChangeReason {

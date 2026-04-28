@@ -7,10 +7,13 @@ import {
   Param,
   Body,
   UseGuards,
+  UseInterceptors,
   Req,
   ParseIntPipe,
+  UploadedFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { TruckService } from './truck.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -19,11 +22,19 @@ import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
 import { AssignUserDto } from './dto/assign-user.dto';
 import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
+import { UploadTruckDocumentDto } from './dto/upload-truck-document.dto';
 import type { Request } from 'express';
 
 interface AuthenticatedRequest extends Request {
   user: { id: number };
 }
+
+type UploadedTruckDocumentFile = {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+  originalname: string;
+};
 
 @ApiBearerAuth()
 @Controller('trucks')
@@ -100,6 +111,82 @@ export class TruckController {
   })
   getOutOfServiceAlerts() {
     return this.truckService.getOutOfServiceAlerts();
+  }
+
+  @Get(':id/documents')
+  @Roles('ADMIN', 'DIRECTION')
+  @ApiOperation({ summary: 'Listar documentos asociados a un vehiculo' })
+  @ApiResponse({
+    status: 200,
+    description: 'Documentos del vehiculo listados correctamente',
+  })
+  getDocuments(@Param('id', ParseIntPipe) id: number) {
+    return this.truckService.getDocuments(id);
+  }
+
+  @Get(':id/documents/:documentType/url')
+  @Roles('ADMIN', 'DIRECTION')
+  @ApiOperation({
+    summary: 'Obtener URL firmada del documento de un vehiculo por tipo',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'URL firmada generada correctamente',
+  })
+  getDocumentUrl(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('documentType') documentType: string,
+  ) {
+    return this.truckService.getDocumentUrl(id, documentType);
+  }
+
+  @Post(':id/documents')
+  @Roles('ADMIN', 'DIRECTION')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 20 * 1024 * 1024,
+      },
+      fileFilter: (_req, file, cb) => {
+        const allowed = [
+          'application/pdf',
+          'image/png',
+          'image/jpeg',
+          'image/jpg',
+          'image/webp',
+        ];
+        if (!allowed.includes((file.mimetype || '').toLowerCase())) {
+          return cb(new Error('Tipo de archivo no permitido'), false);
+        }
+        return cb(null, true);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Subir o reemplazar un documento de vehiculo' })
+  @ApiResponse({
+    status: 201,
+    description: 'Documento del vehiculo subido correctamente',
+  })
+  uploadDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UploadTruckDocumentDto,
+    @UploadedFile() file?: UploadedTruckDocumentFile,
+  ) {
+    return this.truckService.uploadDocument(id, dto, file);
+  }
+
+  @Delete(':id/documents/:documentId')
+  @Roles('ADMIN', 'DIRECTION')
+  @ApiOperation({ summary: 'Eliminar un documento de vehiculo' })
+  @ApiResponse({
+    status: 200,
+    description: 'Documento del vehiculo eliminado correctamente',
+  })
+  removeDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('documentId', ParseIntPipe) documentId: number,
+  ) {
+    return this.truckService.removeDocument(id, documentId);
   }
 
   @Get(':id')
