@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Service } from '../common/s3.service';
+import { ReportNotificationsGateway } from '../report/report-notifications.gateway';
 import { CreateServiceRequestDto } from './dto/create-service-request.dto';
 
 type ServiceRequestAttachmentFile = {
@@ -62,6 +63,7 @@ export class ServiceRequestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
+    private readonly reportNotificationsGateway: ReportNotificationsGateway,
   ) {}
 
   private toResponse(request: ServiceRequestRecord) {
@@ -198,6 +200,18 @@ export class ServiceRequestService {
       }
       throw error;
     }
+
+    this.reportNotificationsGateway.emitServiceRequestCreatedToAdmins({
+      serviceRequestId: request.id,
+      tipo: request.requestType,
+      conductorOpcion: request.driverAction,
+      nombre: request.personName,
+      patente: request.plate,
+      razon: request.reason,
+      estado: request.status,
+      createdAt: request.createdAt,
+      requester: request.requester,
+    });
 
     return this.toResponse(request);
   }
