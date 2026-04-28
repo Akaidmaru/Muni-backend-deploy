@@ -113,6 +113,12 @@ export class ReportNotificationsGateway
     this.server.to(this.getRoleRoom(UserRole.ADMIN)).emit('truck:expiry', payload);
   }
 
+  emitServiceRequestCreatedToAdmins(payload: unknown): void {
+    this.server
+      .to(this.getRoleRoom(UserRole.ADMIN))
+      .emit('service-request:created', payload);
+  }
+
   private extractToken(client: Socket): string | null {
     const authToken = client.handshake.auth?.token;
 
