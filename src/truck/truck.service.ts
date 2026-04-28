@@ -69,8 +69,19 @@ export class TruckService {
     return data;
   }
 
-  async create(dto: CreateTruckDto) {
+  private async getManagedById(userId: number): Promise<number | undefined> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === UserRole.ADMIN) return undefined;
+    return userId;
+  }
+
+  async create(userId: number, dto: CreateTruckDto) {
+    const managedById = await this.getManagedById(userId);
     const data = this.sanitizeTruckCreateInput(dto);
+    data.managedById = managedById ?? null;
 
     try {
       return await this.prisma.truck.create({ data });
@@ -86,8 +97,11 @@ export class TruckService {
     }
   }
 
-  findAll() {
+  async findAll(userId: number) {
+    const managedById = await this.getManagedById(userId);
+
     return this.prisma.truck.findMany({
+      where: { managedById },
       include: {
         users: {
           where: {
@@ -112,9 +126,12 @@ export class TruckService {
     });
   }
 
-  async findUnassigned() {
+  async findUnassigned(userId: number) {
+    const managedById = await this.getManagedById(userId);
+
     return this.prisma.truck.findMany({
       where: {
+        managedById,
         users: {
           none: {
             user: {

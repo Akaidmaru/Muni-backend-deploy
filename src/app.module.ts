@@ -14,6 +14,7 @@ import { EmployeeModule } from './employee/employee.module';
 import { TripHistoryModule } from './trip-history/trip-history.module';
 import { DailyMaintenanceRecordModule } from './daily-maintenance-record/daily-maintenance-record.module';
 import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/monthly-maintenance-record.module';
+import { ServiceRequestModule } from './service-request/service-request.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { MonthlyMaintenanceRecordModule } from './monthly-maintenance-record/mon
     TripHistoryModule,
     DailyMaintenanceRecordModule,
     MonthlyMaintenanceRecordModule,
+    ServiceRequestModule,
   ],
   controllers: [],
   providers: [],

@@ -23,6 +23,12 @@ export type UploadImageBufferParams = {
   key: string;
 };
 
+export type UploadAttachmentBufferParams = {
+  buffer: Buffer;
+  contentType: string;
+  key: string;
+};
+
 @Injectable()
 export class S3Service {
   private readonly logger = new Logger(S3Service.name);
@@ -102,6 +108,35 @@ export class S3Service {
 
       throw new InternalServerErrorException(
         'No se pudo subir el archivo al almacenamiento. Verifique credenciales/permisos de AWS e intente nuevamente.',
+      );
+    }
+
+    return params.key;
+  }
+
+  async uploadAttachmentBuffer(
+    params: UploadAttachmentBufferParams,
+  ): Promise<string> {
+    const mimeType = this.validateAttachmentMimeType(params.contentType);
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: params.key,
+      Body: params.buffer,
+      ContentType: mimeType,
+    });
+
+    try {
+      await this.client.send(command);
+    } catch (error) {
+      const err = error as { name?: string; message?: string };
+
+      this.logger.error(
+        `Error subiendo adjunto a S3. bucket=${this.bucketName} key=${params.key} error=${err?.name || 'UnknownError'} message=${err?.message || 'sin detalle'}`,
+      );
+
+      throw new InternalServerErrorException(
+        'No se pudo subir el adjunto al almacenamiento. Verifique credenciales/permisos de AWS e intente nuevamente.',
       );
     }
 
@@ -189,6 +224,25 @@ export class S3Service {
     if (!allowedMimeTypes.has(normalized)) {
       throw new BadRequestException(
         'Solo se permiten imagenes PNG, JPEG o WEBP.',
+      );
+    }
+
+    return normalized;
+  }
+
+  private validateAttachmentMimeType(contentType: string): string {
+    const normalized = (contentType || '').toLowerCase().trim();
+    const allowedMimeTypes = new Set([
+      'application/pdf',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+    ]);
+
+    if (!allowedMimeTypes.has(normalized)) {
+      throw new BadRequestException(
+        'Solo se permiten archivos PDF o imagenes PNG, JPEG o WEBP.',
       );
     }
 

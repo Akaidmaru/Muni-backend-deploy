@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { UserRole } from '@prisma/client';
 
 export type EmployeeResponse = {
   id: number;
@@ -18,28 +19,40 @@ export type EmployeeResponse = {
 export class EmployeeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findActive(): Promise<EmployeeResponse[]> {
+  private async getManagedById(requesterId: number): Promise<number | undefined> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    if (requester?.role === UserRole.ADMIN) return undefined;
+    return requesterId;
+  }
+
+  async findActive(requesterId: number): Promise<EmployeeResponse[]> {
+    const managedById = await this.getManagedById(requesterId);
     return this.prisma.employee.findMany({
-      where: { active: true },
+      where: { active: true, managedById },
       orderBy: { name: 'asc' },
     });
   }
 
-  async findAll(): Promise<EmployeeResponse[]> {
+  async findAll(requesterId: number): Promise<EmployeeResponse[]> {
+    const managedById = await this.getManagedById(requesterId);
     return this.prisma.employee.findMany({
+      where: { managedById },
       orderBy: [{ active: 'desc' }, { name: 'asc' }],
     });
   }
 
-  async create(dto: CreateEmployeeDto): Promise<EmployeeResponse> {
+  async create(requesterId: number, dto: CreateEmployeeDto): Promise<EmployeeResponse> {
+    const managedById = await this.getManagedById(requesterId);
+    const storedManagedById = managedById ?? null;
     const normalizedName = dto.name.trim();
 
     const existing = await this.prisma.employee.findFirst({
       where: {
-        name: {
-          equals: normalizedName,
-          mode: 'insensitive',
-        },
+        managedById: storedManagedById,
+        name: { equals: normalizedName, mode: 'insensitive' },
       },
       select: { id: true, active: true },
     });
@@ -56,10 +69,7 @@ export class EmployeeService {
     }
 
     return this.prisma.employee.create({
-      data: {
-        name: normalizedName,
-        active: true,
-      },
+      data: { name: normalizedName, active: true, managedById: storedManagedById },
     });
   }
 
