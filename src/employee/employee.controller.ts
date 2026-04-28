@@ -43,9 +43,10 @@ export class EmployeeController {
 
   @Get(':id')
   async findOne(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<EmployeeResponse> {
-    return this.employeeService.findOne(id);
+    return this.employeeService.findOne(id, Number(req.user.id));
   }
 
   @Post()
@@ -62,17 +63,21 @@ export class EmployeeController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
   async update(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateEmployeeDto,
   ): Promise<EmployeeResponse> {
-    return this.employeeService.update(id, dto);
+    return this.employeeService.update(Number(req.user.id), id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
-  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.employeeService.remove(id);
+  async remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<void> {
+    return this.employeeService.remove(Number(req.user.id), id);
   }
 }

@@ -45,6 +45,33 @@ export class UserService {
     return requesterId;
   }
 
+  private async assertUserAccess(requesterId: number, targetUserId: number) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, role: true, managedById: true },
+    });
+
+    if (!target) {
+      throw new NotFoundException(`Usuario con ID ${targetUserId} no encontrado`);
+    }
+
+    if (requester.role === UserRole.ADMIN) return target;
+    if (target.managedById !== requesterId) {
+      throw new ForbiddenException('No tienes permiso para acceder a este usuario');
+    }
+
+    return target;
+  }
+
   async findByRoles(
     requesterId: number,
     roles?: UserRole[],
@@ -207,7 +234,11 @@ export class UserService {
     return { items, total, page: safePage, pageSize: safePageSize };
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, requesterId?: number) {
+    if (requesterId !== undefined) {
+      await this.assertUserAccess(requesterId, id);
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id },
     });
@@ -217,7 +248,15 @@ export class UserService {
     return user;
   }
 
-  async getTrucksOfUser(userId: number, includeUnassignedFallback = false) {
+  async getTrucksOfUser(
+    userId: number,
+    includeUnassignedFallback = false,
+    requesterId?: number,
+  ) {
+    if (requesterId !== undefined) {
+      await this.assertUserAccess(requesterId, userId);
+    }
+
     const assignments = await this.prisma.truckAssignment.findMany({
       where: {
         userId,
@@ -283,8 +322,8 @@ export class UserService {
     });
   }
 
-  async remove(id: number) {
-    const user = await this.findOne(id);
+  async remove(id: number, requesterId?: number) {
+    const user = await this.findOne(id, requesterId);
 
     if (user.role === UserRole.ADMIN) {
       throw new ForbiddenException(
@@ -312,8 +351,8 @@ export class UserService {
     }
   }
 
-  async adminUpdateUser(id: number, dto: AdminUpdateUserDto) {
-    const user = await this.findOne(id);
+  async adminUpdateUser(id: number, dto: AdminUpdateUserDto, requesterId?: number) {
+    const user = await this.findOne(id, requesterId);
 
     if (user.role === UserRole.ADMIN) {
       throw new ForbiddenException(
@@ -384,8 +423,8 @@ export class UserService {
     return { message: 'Contraseña actualizada correctamente' };
   }
 
-  async adminResetPassword(id: number, newPassword: string) {
-    await this.findOne(id);
+  async adminResetPassword(id: number, newPassword: string, requesterId?: number) {
+    await this.findOne(id, requesterId);
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await this.prisma.user.update({

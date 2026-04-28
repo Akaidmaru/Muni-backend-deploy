@@ -172,8 +172,12 @@ export class UserController {
       },
     },
   })
-  getTrucksOfUser(@Param('id') id: string) {
-    return this.userService.getTrucksOfUser(Number(id));
+  getTrucksOfUser(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.userService.getTrucksOfUser(
+      Number(id),
+      false,
+      Number(req.user.id),
+    );
   }
 
   @Post()
@@ -243,8 +247,8 @@ export class UserController {
       },
     },
   })
-  findOne(@Param('id') id: string) {
-    return this.userService.findOne(Number(id));
+  findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.userService.findOne(Number(id), Number(req.user.id));
   }
 
   @Patch('change-password')
@@ -286,6 +290,7 @@ export class UserController {
     },
   })
   adminResetPassword(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body('newPassword') newPassword: string,
   ) {
@@ -295,9 +300,11 @@ export class UserController {
       );
     }
 
-    return this.userService.adminResetPassword(id, newPassword) as Promise<{
-      message: string;
-    }>;
+    return this.userService.adminResetPassword(
+      id,
+      newPassword,
+      Number(req.user.id),
+    ) as Promise<{ message: string }>;
   }
 
   @Patch(':id')
@@ -315,8 +322,16 @@ export class UserController {
   })
   @ApiBearerAuth()
   @Roles('ADMIN', 'DIRECTION')
-  adminUpdateUser(@Param('id') id: string, @Body() dto: AdminUpdateUserDto) {
-    return this.userService.adminUpdateUser(Number(id), dto);
+  adminUpdateUser(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateUserDto,
+  ) {
+    return this.userService.adminUpdateUser(
+      Number(id),
+      dto,
+      Number(req.user.id),
+    );
   }
 
   @Delete(':id')
@@ -334,7 +349,10 @@ export class UserController {
       },
     },
   })
-  adminDeleteUser(@Param('id', ParseIntPipe) id: number) {
-    return this.userService.remove(id);
+  adminDeleteUser(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.userService.remove(id, Number(req.user.id));
   }
 }

@@ -131,8 +131,14 @@ export class TripHistoryController {
   @Get(':id/map-route')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
-  async getAdminRoute(@Param('id', ParseIntPipe) id: number): Promise<unknown> {
-    const route: unknown = await this.tripHistoryService.getAdminRoute(id);
+  async getAdminRoute(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<unknown> {
+    const route: unknown = await this.tripHistoryService.getAdminRoute(
+      Number(req.user.id),
+      id,
+    );
     return route;
   }
 
@@ -156,10 +162,12 @@ export class TripHistoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
   async updateByAdmin(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTripHistoryDto,
   ): Promise<unknown> {
     const tripHistory: unknown = await this.tripHistoryService.updateByAdmin(
+      Number(req.user.id),
       id,
       dto,
     );
@@ -170,7 +178,10 @@ export class TripHistoryController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
-  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    await this.tripHistoryService.remove(id);
+  async remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<void> {
+    await this.tripHistoryService.remove(Number(req.user.id), id);
   }
 }

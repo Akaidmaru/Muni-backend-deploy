@@ -55,6 +55,7 @@ export class MonthlyMaintenanceRecordController {
     description: 'Registro mensual para un camión y mes (YYYY-MM)',
   })
   async findAdminByTruckAndMonth(
+    @Req() req: AuthenticatedRequest,
     @Param('truckId', ParseIntPipe) truckId: number,
     @Query('month') month: string,
   ) {
@@ -65,6 +66,7 @@ export class MonthlyMaintenanceRecordController {
     }
 
     return await this.monthlyMaintenanceRecordService.findAdminByTruckAndMonth(
+      Number(req.user.id),
       truckId,
       month,
     );
@@ -78,9 +80,13 @@ export class MonthlyMaintenanceRecordController {
     description: 'Registro mensual creado o actualizado correctamente',
   })
   async upsertAdmin(
+    @Req() req: AuthenticatedRequest,
     @Body() dto: UpsertMonthlyMaintenanceRecordDto,
   ) {
-    return await this.monthlyMaintenanceRecordService.upsertAdmin(dto);
+    return await this.monthlyMaintenanceRecordService.upsertAdmin(
+      Number(req.user.id),
+      dto,
+    );
   }
 
   @Patch('admin/:id/status')
@@ -91,10 +97,12 @@ export class MonthlyMaintenanceRecordController {
     description: 'Estado del registro mensual actualizado correctamente',
   })
   async updateStatusAdmin(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateMonthlyMaintenanceStatusDto,
   ) {
     return await this.monthlyMaintenanceRecordService.updateStatusAdmin(
+      Number(req.user.id),
       id,
       dto.status,
     );

@@ -120,8 +120,11 @@ export class TruckController {
     status: 200,
     description: 'Documentos del vehiculo listados correctamente',
   })
-  getDocuments(@Param('id', ParseIntPipe) id: number) {
-    return this.truckService.getDocuments(id);
+  getDocuments(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.truckService.getDocuments(Number(req.user.id), id);
   }
 
   @Get(':id/documents/:documentType/url')
@@ -134,10 +137,11 @@ export class TruckController {
     description: 'URL firmada generada correctamente',
   })
   getDocumentUrl(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Param('documentType') documentType: string,
   ) {
-    return this.truckService.getDocumentUrl(id, documentType);
+    return this.truckService.getDocumentUrl(Number(req.user.id), id, documentType);
   }
 
   @Post(':id/documents')
@@ -168,11 +172,12 @@ export class TruckController {
     description: 'Documento del vehiculo subido correctamente',
   })
   uploadDocument(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UploadTruckDocumentDto,
     @UploadedFile() file?: UploadedTruckDocumentFile,
   ) {
-    return this.truckService.uploadDocument(id, dto, file);
+    return this.truckService.uploadDocument(Number(req.user.id), id, dto, file);
   }
 
   @Delete(':id/documents/:documentId')
@@ -183,10 +188,11 @@ export class TruckController {
     description: 'Documento del vehiculo eliminado correctamente',
   })
   removeDocument(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Param('documentId', ParseIntPipe) documentId: number,
   ) {
-    return this.truckService.removeDocument(id, documentId);
+    return this.truckService.removeDocument(Number(req.user.id), id, documentId);
   }
 
   @Get(':id')
@@ -202,8 +208,11 @@ export class TruckController {
       },
     },
   })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.truckService.findOne(id);
+  findOne(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.truckService.findOne(Number(req.user.id), id);
   }
 
   @Patch(':id')
@@ -219,8 +228,12 @@ export class TruckController {
       },
     },
   })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTruckDto) {
-    return this.truckService.update(id, dto);
+  update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateTruckDto,
+  ) {
+    return this.truckService.update(Number(req.user.id), id, dto);
   }
 
   @Delete(':id')
@@ -236,8 +249,11 @@ export class TruckController {
       },
     },
   })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.truckService.remove(id);
+  remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.truckService.remove(Number(req.user.id), id);
   }
 
   @Post('assign')
@@ -253,8 +269,8 @@ export class TruckController {
       },
     },
   })
-  assignUser(@Body() dto: AssignUserDto) {
-    return this.truckService.assignUser(dto);
+  assignUser(@Req() req: AuthenticatedRequest, @Body() dto: AssignUserDto) {
+    return this.truckService.assignUser(Number(req.user.id), dto);
   }
 
   @Get(':id/users')
@@ -273,8 +289,11 @@ export class TruckController {
       },
     },
   })
-  getUsersOfTruck(@Param('id', ParseIntPipe) id: number) {
-    return this.truckService.getUsersOfTruck(id);
+  getUsersOfTruck(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.truckService.getUsersOfTruck(Number(req.user.id), id);
   }
 
   @Post('plate-change')

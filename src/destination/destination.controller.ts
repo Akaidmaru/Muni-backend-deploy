@@ -30,22 +30,27 @@ export class DestinationController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
-  async findAll(@Req() req: AuthenticatedRequest): Promise<DestinationResponse[]> {
+  async findAll(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<DestinationResponse[]> {
     return await this.destinationService.findAll(Number(req.user.id));
   }
 
   @Get('active')
   @UseGuards(JwtAuthGuard)
-  async findAllActive(@Req() req: AuthenticatedRequest): Promise<DestinationResponse[]> {
+  async findAllActive(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<DestinationResponse[]> {
     return await this.destinationService.findAllActive(Number(req.user.id));
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DestinationResponse> {
-    return await this.destinationService.findOne(id);
+    return await this.destinationService.findOne(id, Number(req.user.id));
   }
 
   @Post()
@@ -62,18 +67,20 @@ export class DestinationController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
   async update(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() data: UpdateDestinationDto,
   ): Promise<DestinationResponse> {
-    return await this.destinationService.update(id, data);
+    return await this.destinationService.update(Number(req.user.id), id, data);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
   async remove(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DestinationResponse> {
-    return await this.destinationService.remove(id);
+    return await this.destinationService.remove(Number(req.user.id), id);
   }
 }
