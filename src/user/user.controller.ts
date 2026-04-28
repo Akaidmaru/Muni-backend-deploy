@@ -148,7 +148,10 @@ export class UserController {
     @Req() req: AuthenticatedRequest,
     @Query('status') status: string,
   ) {
-    return this.userService.findByVerificationStatus(Number(req.user.id), status);
+    return this.userService.findByVerificationStatus(
+      Number(req.user.id),
+      status,
+    );
   }
 
   @Get(':id/trucks')
@@ -188,7 +191,10 @@ export class UserController {
       },
     },
   })
-  adminCreate(@Req() req: AuthenticatedRequest, @Body() dto: AdminCreateUserDto) {
+  adminCreate(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: AdminCreateUserDto,
+  ) {
     return this.userService.adminCreate(Number(req.user.id), dto);
   }
 
