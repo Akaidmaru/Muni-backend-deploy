@@ -51,6 +51,23 @@ export class TripHistoryService {
     private readonly destinationService: DestinationService,
   ) {}
 
+  private async resolveDriverManagedById(driverId: number): Promise<number | null> {
+    const driverUser = await this.prisma.user.findUnique({
+      where: { id: driverId },
+      select: { managedById: true, role: true },
+    });
+
+    if (!driverUser) {
+      throw new NotFoundException('Conductor no encontrado');
+    }
+
+    if (driverUser.role !== UserRole.DRIVER) {
+      throw new ForbiddenException('El usuario no es un conductor');
+    }
+
+    return driverUser.managedById ?? null;
+  }
+
   private async getCachedSignedUrl(key: string): Promise<string | null> {
     const cacheKey = `s3:signed-url:${key}`;
     const cached = await this.redisService.get(cacheKey);
@@ -371,11 +388,7 @@ export class TripHistoryService {
   }
 
   async startTrip(userId: number, dto: StartTripDto, clientTimeZone?: string) {
-    const driverUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { managedById: true },
-    });
-    const driverManagedById = driverUser?.managedById ?? null;
+    const driverManagedById = await this.resolveDriverManagedById(userId);
 
     const truck = await this.prisma.truck.findFirst({
       where: {
@@ -426,10 +439,25 @@ export class TripHistoryService {
         driverManagedById,
       );
     } else if (dto.destinationId) {
-      destination = await this.prisma.destination.findUnique({
+      const selectedDestination = await this.prisma.destination.findUnique({
         where: { id: dto.destinationId },
-        select: { id: true, name: true },
+        select: { id: true, name: true, active: true, managedById: true },
       });
+
+      if (!selectedDestination || !selectedDestination.active) {
+        throw new NotFoundException('Destino no encontrado');
+      }
+
+      if (selectedDestination.managedById !== driverManagedById) {
+        throw new ForbiddenException(
+          'El destino no pertenece al administrador del conductor',
+        );
+      }
+
+      destination = {
+        id: selectedDestination.id,
+        name: selectedDestination.name,
+      };
     }
 
     if (!destination) {
@@ -475,11 +503,17 @@ export class TripHistoryService {
     } else if (dto.employeeId) {
       const selectedEmployee = await this.prisma.employee.findUnique({
         where: { id: dto.employeeId },
-        select: { id: true, name: true, active: true },
+        select: { id: true, name: true, active: true, managedById: true },
       });
 
       if (!selectedEmployee || !selectedEmployee.active) {
         throw new NotFoundException('Funcionario no encontrado');
+      }
+
+      if (selectedEmployee.managedById !== driverManagedById) {
+        throw new ForbiddenException(
+          'El funcionario no pertenece al administrador del conductor',
+        );
       }
 
       employee = { id: selectedEmployee.id, name: selectedEmployee.name };
@@ -503,6 +537,7 @@ export class TripHistoryService {
         date: operationalDate,
         startTime: dto.startTime,
         endTime: null,
+        observations: dto.observations || null,
         status: TripHistoryStatus.DRIVER_FILLING,
         startKm,
         endKm: null,
@@ -516,6 +551,7 @@ export class TripHistoryService {
         date: true,
         startTime: true,
         endTime: true,
+        observations: true,
         startKm: true,
         endKm: true,
         status: true,
@@ -706,6 +742,7 @@ export class TripHistoryService {
             date: true,
             startTime: true,
             endTime: true,
+            observations: true,
             startKm: true,
             endKm: true,
             status: true,
@@ -899,6 +936,7 @@ export class TripHistoryService {
       ...(dateForUpdate ? { date: dateForUpdate } : {}),
       ...(dto.startTime !== undefined ? { startTime: dto.startTime } : {}),
       ...(dto.endTime !== undefined ? { endTime: dto.endTime } : {}),
+      ...(dto.observations !== undefined ? { observations: dto.observations } : {}),
       ...(dto.status !== undefined ? { status: dto.status } : {}),
       ...(dto.startKm !== undefined ? { startKm: dto.startKm } : {}),
       ...(dto.endKm !== undefined ? { endKm: dto.endKm } : {}),

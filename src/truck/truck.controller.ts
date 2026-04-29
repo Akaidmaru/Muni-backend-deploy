@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { TruckExpiryService } from './truck-expiry.service';
 import { TruckService } from './truck.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -40,7 +41,10 @@ type UploadedTruckDocumentFile = {
 @Controller('trucks')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TruckController {
-  constructor(private readonly truckService: TruckService) {}
+  constructor(
+    private readonly truckService: TruckService,
+    private readonly truckExpiryService: TruckExpiryService,
+  ) {}
 
   @Post()
   @Roles('ADMIN', 'DIRECTION')
@@ -97,6 +101,17 @@ export class TruckController {
   })
   findUnassigned(@Req() req: AuthenticatedRequest) {
     return this.truckService.findUnassigned(Number(req.user.id));
+  }
+
+  @Get('expiry-notifications')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Alertas de vencimiento de documentos de camiones para hoy (ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado de documentos que vencen en 1 o 7 días',
+  })
+  getExpiryNotifications() {
+    return this.truckExpiryService.getExpiryNotificationPayloads();
   }
 
   @Get('out-of-service-alerts')

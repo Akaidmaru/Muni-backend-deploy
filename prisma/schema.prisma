@@ -100,6 +100,7 @@ model TripHistory {
   date          DateTime
   startTime     String
   endTime       String?
+  observations  String?
   status        TripHistoryStatus  @default(DRIVER_FILLING)
   startKm       Float
   endKm         Float?

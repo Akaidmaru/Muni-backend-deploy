@@ -31,13 +31,19 @@ export class TruckExpiryService implements OnModuleInit {
   // Corre a las 00:00 hora Santiago todos los días (maneja DST de Chile automáticamente)
   @Cron('0 0 * * *', { timeZone: 'America/Santiago' })
   async checkExpiries(): Promise<void> {
+    const payloads = await this.getExpiryNotificationPayloads();
+    for (const payload of payloads) {
+      this.gateway.emitTruckExpiryToAdmins(payload);
+    }
+  }
+
+  async getExpiryNotificationPayloads(): Promise<TruckExpiryPayload[]> {
     const todayStr = this.getTodayInSantiago();
     const sevenDaysStr = this.addDays(todayStr, 7);
     const oneDayStr = this.addDays(todayStr, 1);
 
     const targetDates = [sevenDaysStr, oneDayStr];
 
-    // Construir la query OR para los 4 campos de fecha
     const trucks = await this.prisma.truck.findMany({
       where: {
         OR: DOCUMENT_FIELDS.flatMap(({ field }) =>
@@ -56,6 +62,8 @@ export class TruckExpiryService implements OnModuleInit {
       },
     });
 
+    const payloads: TruckExpiryPayload[] = [];
+
     for (const truck of trucks) {
       for (const { field, label } of DOCUMENT_FIELDS) {
         const expiryDate = truck[field as DocumentField] as Date | null;
@@ -66,7 +74,7 @@ export class TruckExpiryService implements OnModuleInit {
 
         const daysUntilExpiry: 7 | 1 = expiryStr === sevenDaysStr ? 7 : 1;
 
-        const payload: TruckExpiryPayload = {
+        payloads.push({
           notificationId: `truck-expiry-${truck.id}-${field}-${daysUntilExpiry}d-${expiryStr}`,
           truckId: truck.id,
           plate: truck.plate,
@@ -74,11 +82,11 @@ export class TruckExpiryService implements OnModuleInit {
           documentLabel: label,
           expiresAt: expiryStr,
           daysUntilExpiry,
-        };
-
-        this.gateway.emitTruckExpiryToAdmins(payload);
+        });
       }
     }
+
+    return payloads;
   }
 
   // Devuelve la fecha actual en zona horaria America/Santiago como "YYYY-MM-DD"
