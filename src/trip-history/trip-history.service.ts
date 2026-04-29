@@ -302,6 +302,38 @@ export class TripHistoryService {
     };
   }
 
+  private async assertAdminTripAccess(requesterId: number, tripHistoryId: number) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const tripHistory = await this.prisma.tripHistory.findUnique({
+      where: { id: tripHistoryId },
+      select: {
+        id: true,
+        truck: { select: { managedById: true } },
+      },
+    });
+
+    if (!tripHistory) {
+      throw new NotFoundException('Viaje no encontrado');
+    }
+
+    if (
+      requester.role !== UserRole.ADMIN &&
+      tripHistory.truck.managedById !== requesterId
+    ) {
+      throw new ForbiddenException('No tienes permiso para acceder a este viaje');
+    }
+
+    return tripHistory;
+  }
+
   async findAll(requesterId: number, options: FindAllOptions) {
     const requester = await this.prisma.user.findUnique({
       where: { id: requesterId },
@@ -468,7 +500,7 @@ export class TripHistoryService {
 
     return this.prisma.tripHistory.create({
       data: {
-        date: new Date(),
+        date: operationalDate,
         startTime: dto.startTime,
         endTime: null,
         status: TripHistoryStatus.DRIVER_FILLING,
@@ -554,17 +586,8 @@ export class TripHistoryService {
     };
   }
 
-  async getAdminRoute(tripHistoryId: number) {
-    const tripHistory = await this.prisma.tripHistory.findUnique({
-      where: { id: tripHistoryId },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!tripHistory) {
-      throw new NotFoundException('Viaje no encontrado');
-    }
+  async getAdminRoute(requesterId: number, tripHistoryId: number) {
+    const tripHistory = await this.assertAdminTripAccess(requesterId, tripHistoryId);
 
     const rawPoints = await this.prisma.tripHistoryPoint.findMany({
       where: {
@@ -759,7 +782,18 @@ export class TripHistoryService {
     return (degrees * Math.PI) / 180;
   }
 
-  async updateByAdmin(tripHistoryId: number, dto: UpdateTripHistoryDto) {
+  async updateByAdmin(
+    requesterId: number,
+    tripHistoryId: number,
+    dto: UpdateTripHistoryDto,
+  ) {
+    await this.assertAdminTripAccess(requesterId, tripHistoryId);
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    const isGlobalAdmin = requester?.role === UserRole.ADMIN;
+
     const tripHistory = await this.prisma.tripHistory.findUnique({
       where: { id: tripHistoryId },
       select: {
@@ -788,29 +822,35 @@ export class TripHistoryService {
     if (dto.truckId !== undefined) {
       const truck = await this.prisma.truck.findUnique({
         where: { id: dto.truckId },
-        select: { id: true },
+        select: { id: true, managedById: true },
       });
 
       if (!truck) {
         throw new NotFoundException('Camión no encontrado');
+      }
+      if (!isGlobalAdmin && truck.managedById !== requesterId) {
+        throw new ForbiddenException('No tienes permiso para usar este camión');
       }
     }
 
     if (dto.destinationId !== undefined) {
       const destination = await this.prisma.destination.findUnique({
         where: { id: dto.destinationId },
-        select: { id: true },
+        select: { id: true, managedById: true },
       });
 
       if (!destination) {
         throw new NotFoundException('Destino no encontrado');
+      }
+      if (!isGlobalAdmin && destination.managedById !== requesterId) {
+        throw new ForbiddenException('No tienes permiso para usar este destino');
       }
     }
 
     if (dto.driverId !== undefined) {
       const driverUser = await this.prisma.user.findUnique({
         where: { id: dto.driverId },
-        select: { id: true, role: true },
+        select: { id: true, role: true, managedById: true },
       });
 
       if (!driverUser) {
@@ -820,12 +860,15 @@ export class TripHistoryService {
       if (driverUser.role !== UserRole.DRIVER) {
         throw new BadRequestException('El usuario indicado no es un conductor');
       }
+      if (!isGlobalAdmin && driverUser.managedById !== requesterId) {
+        throw new ForbiddenException('No tienes permiso para usar este conductor');
+      }
     }
 
     if (dto.employeeId !== undefined) {
       const employee = await this.prisma.employee.findUnique({
         where: { id: dto.employeeId },
-        select: { id: true, active: true },
+        select: { id: true, active: true, managedById: true },
       });
 
       if (!employee) {
@@ -836,6 +879,9 @@ export class TripHistoryService {
         throw new BadRequestException(
           'No se puede asignar un funcionario inactivo',
         );
+      }
+      if (!isGlobalAdmin && employee.managedById !== requesterId) {
+        throw new ForbiddenException('No tienes permiso para usar este funcionario');
       }
     }
 
@@ -897,15 +943,8 @@ export class TripHistoryService {
     });
   }
 
-  async remove(tripHistoryId: number): Promise<void> {
-    const tripHistory = await this.prisma.tripHistory.findUnique({
-      where: { id: tripHistoryId },
-      select: { id: true },
-    });
-
-    if (!tripHistory) {
-      throw new NotFoundException('Viaje no encontrado');
-    }
+  async remove(requesterId: number, tripHistoryId: number): Promise<void> {
+    await this.assertAdminTripAccess(requesterId, tripHistoryId);
 
     await this.prisma.tripHistory.delete({
       where: { id: tripHistoryId },

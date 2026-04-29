@@ -68,8 +68,11 @@ export class DailyMaintenanceRecordController {
     status: 201,
     description: 'Registro de mantenimiento creado exitosamente',
   })
-  async create(@Body() dto: CreateDailyMaintenanceRecordDto) {
-    return await this.DailyMaintenanceRecordService.create(dto);
+  async create(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateDailyMaintenanceRecordDto,
+  ) {
+    return await this.DailyMaintenanceRecordService.create(Number(req.user.id), dto);
   }
 
   @Get()
@@ -101,8 +104,14 @@ export class DailyMaintenanceRecordController {
     status: 200,
     description: 'Registros de mantenimiento del vehículo',
   })
-  async findByTruck(@Param('truckId', ParseIntPipe) truckId: number) {
-    return await this.DailyMaintenanceRecordService.findByTruck(truckId);
+  async findByTruck(
+    @Req() req: AuthenticatedRequest,
+    @Param('truckId', ParseIntPipe) truckId: number,
+  ) {
+    return await this.DailyMaintenanceRecordService.findByTruck(
+      Number(req.user.id),
+      truckId,
+    );
   }
 
   @Get('truck/:truckId/date')
@@ -116,11 +125,13 @@ export class DailyMaintenanceRecordController {
       'Registro de mantenimiento del vehículo en la fecha especificada',
   })
   async findByTruckAndDate(
+    @Req() req: AuthenticatedRequest,
     @Param('truckId', ParseIntPipe) truckId: number,
     @Query('date') dateStr: string,
   ) {
     const date = parseDateOnlyOrThrow(dateStr);
     return await this.DailyMaintenanceRecordService.findByTruckAndDate(
+      Number(req.user.id),
       truckId,
       date,
     );
@@ -137,11 +148,13 @@ export class DailyMaintenanceRecordController {
       'Registro de mantenimiento del conductor en la fecha especificada',
   })
   async findByDriverAndDate(
+    @Req() req: AuthenticatedRequest,
     @Param('driverId', ParseIntPipe) driverId: number,
     @Query('date') dateStr: string,
   ) {
     const date = parseDateOnlyOrThrow(dateStr);
     return await this.DailyMaintenanceRecordService.findByDriverAndDate(
+      Number(req.user.id),
       driverId,
       date,
     );
@@ -159,12 +172,14 @@ export class DailyMaintenanceRecordController {
       'Registro de mantenimiento del conductor para ese vehículo en la fecha especificada',
   })
   async findByDriverTruckAndDate(
+    @Req() req: AuthenticatedRequest,
     @Param('driverId', ParseIntPipe) driverId: number,
     @Param('truckId', ParseIntPipe) truckId: number,
     @Query('date') dateStr: string,
   ) {
     const date = parseDateOnlyOrThrow(dateStr);
     return await this.DailyMaintenanceRecordService.findByDriverTruckAndDate(
+      Number(req.user.id),
       driverId,
       truckId,
       date,
@@ -180,8 +195,12 @@ export class DailyMaintenanceRecordController {
     status: 200,
     description: 'Kilometraje sugerido para el formulario',
   })
-  async getMileageSuggestion(@Param('truckId', ParseIntPipe) truckId: number) {
+  async getMileageSuggestion(
+    @Req() req: AuthenticatedRequest,
+    @Param('truckId', ParseIntPipe) truckId: number,
+  ) {
     return await this.DailyMaintenanceRecordService.getTruckMileageSuggestion(
+      Number(req.user.id),
       truckId,
     );
   }
@@ -196,8 +215,12 @@ export class DailyMaintenanceRecordController {
     status: 200,
     description: 'Kilometraje sugerido para el formulario',
   })
-  async getMileageSuggestionByPlate(@Param('plate') plate: string) {
+  async getMileageSuggestionByPlate(
+    @Req() req: AuthenticatedRequest,
+    @Param('plate') plate: string,
+  ) {
     return await this.DailyMaintenanceRecordService.getTruckMileageSuggestionByPlate(
+      Number(req.user.id),
       plate,
     );
   }
@@ -209,8 +232,11 @@ export class DailyMaintenanceRecordController {
     status: 200,
     description: 'Detalles del registro de mantenimiento',
   })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return await this.DailyMaintenanceRecordService.findOne(id);
+  async findOne(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return await this.DailyMaintenanceRecordService.findOne(id, Number(req.user.id));
   }
 
   @Get('admin/:id')
@@ -220,8 +246,11 @@ export class DailyMaintenanceRecordController {
     status: 200,
     description: 'Detalles del registro de mantenimiento (solo ADMIN)',
   })
-  async findOneAdmin(@Param('id', ParseIntPipe) id: number) {
-    return await this.DailyMaintenanceRecordService.findOne(id);
+  async findOneAdmin(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return await this.DailyMaintenanceRecordService.findOne(id, Number(req.user.id));
   }
 
   @Patch('admin/:id/status')
@@ -234,8 +263,10 @@ export class DailyMaintenanceRecordController {
   async updateStatusAdmin(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateDailyMaintenanceStatusDto,
+    @Req() req: AuthenticatedRequest,
   ) {
     return await this.DailyMaintenanceRecordService.updateStatusAdmin(
+      Number(req.user.id),
       id,
       dto.status,
     );
@@ -249,10 +280,15 @@ export class DailyMaintenanceRecordController {
     description: 'Registro de mantenimiento actualizado',
   })
   async update(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateDailyMaintenanceRecordDto,
   ) {
-    return await this.DailyMaintenanceRecordService.update(id, dto);
+    return await this.DailyMaintenanceRecordService.update(
+      Number(req.user.id),
+      id,
+      dto,
+    );
   }
 
   @Delete(':id')

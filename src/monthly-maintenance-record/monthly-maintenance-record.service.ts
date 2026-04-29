@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { MonthlyMaintenanceRecordStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertMonthlyMaintenanceRecordDto } from './dto';
@@ -14,6 +19,61 @@ export class MonthlyMaintenanceRecordService {
     });
     if (requester?.role === UserRole.ADMIN) return undefined;
     return requesterId;
+  }
+
+  private async assertTruckAccess(requesterId: number, truckId: number) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const truck = await this.prisma.truck.findUnique({
+      where: { id: truckId },
+      select: { id: true, managedById: true },
+    });
+
+    if (!truck) {
+      throw new NotFoundException(`Truck con ID ${truckId} no encontrado`);
+    }
+
+    if (requester.role !== UserRole.ADMIN && truck.managedById !== requesterId) {
+      throw new ForbiddenException('No tienes permiso para acceder a este vehículo');
+    }
+
+    return truck;
+  }
+
+  private async assertRecordAccess(requesterId: number, recordId: number) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const record = await this.prisma.monthlyMaintenanceRecord.findUnique({
+      where: { id: recordId },
+      select: {
+        id: true,
+        truck: { select: { managedById: true } },
+      },
+    });
+
+    if (!record) {
+      throw new NotFoundException(`Registro mensual con ID ${recordId} no encontrado`);
+    }
+
+    if (requester.role !== UserRole.ADMIN && record.truck.managedById !== requesterId) {
+      throw new ForbiddenException('No tienes permiso para acceder a este registro');
+    }
+
+    return record;
   }
 
   private statusSeverity(status: string) {
@@ -112,8 +172,13 @@ export class MonthlyMaintenanceRecordService {
     });
   }
 
-  async findAdminByTruckAndMonth(truckId: number, monthKey: string) {
+  async findAdminByTruckAndMonth(
+    requesterId: number,
+    truckId: number,
+    monthKey: string,
+  ) {
     this.parseMonthKey(monthKey);
+    await this.assertTruckAccess(requesterId, truckId);
 
     const record = await this.prisma.monthlyMaintenanceRecord.findUnique({
       where: {
@@ -148,13 +213,9 @@ export class MonthlyMaintenanceRecordService {
     return record;
   }
 
-  async upsertAdmin(dto: UpsertMonthlyMaintenanceRecordDto) {
+  async upsertAdmin(requesterId: number, dto: UpsertMonthlyMaintenanceRecordDto) {
     this.parseMonthKey(dto.monthKey);
-
-    const truck = await this.prisma.truck.findUnique({ where: { id: dto.truckId } });
-    if (!truck) {
-      throw new NotFoundException(`Truck con ID ${dto.truckId} no encontrado`);
-    }
+    await this.assertTruckAccess(requesterId, dto.truckId);
 
     return await this.prisma.$transaction(async (tx) => {
       const sanitizedItems = this.dedupeMonthlyItems(dto.monthlyMaintenanceItems);
@@ -219,17 +280,11 @@ export class MonthlyMaintenanceRecordService {
   }
 
   async updateStatusAdmin(
+    requesterId: number,
     recordId: number,
     status: MonthlyMaintenanceRecordStatus,
   ) {
-    const existing = await this.prisma.monthlyMaintenanceRecord.findUnique({
-      where: { id: recordId },
-      select: { id: true },
-    });
-
-    if (!existing) {
-      throw new NotFoundException(`Registro mensual con ID ${recordId} no encontrado`);
-    }
+    await this.assertRecordAccess(requesterId, recordId);
 
     return await this.prisma.monthlyMaintenanceRecord.update({
       where: { id: recordId },

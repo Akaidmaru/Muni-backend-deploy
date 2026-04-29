@@ -186,8 +186,8 @@ model DailyMaintenanceRecord {
   driver                User                   @relation(fields: [driverId], references: [id], onDelete: Cascade)
   dailyMaintenanceItems DailyMaintenanceItem[]
 
-  // Índice compuesto: una vez por vehículo/día
-  @@unique([truckId, inspectionDate])
+  // Índice compuesto: una vez por conductor/vehículo/día
+  @@unique([driverId, truckId, inspectionDate])
   @@index([truckId])
   @@index([driverId])
   @@index([inspectionDate])

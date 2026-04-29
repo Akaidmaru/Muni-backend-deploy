@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -28,6 +29,37 @@ export class DestinationService {
     });
     if (requester?.role === UserRole.ADMIN) return undefined;
     return requesterId;
+  }
+
+  private async assertDestinationAccess(requesterId: number, id: number) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true, managedById: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const destination = await this.prisma.destination.findUnique({
+      where: { id },
+      select: { id: true, managedById: true },
+    });
+
+    if (!destination) {
+      throw new NotFoundException(`Destino con ID ${id} no encontrado`);
+    }
+
+    if (requester.role === UserRole.ADMIN) return destination;
+
+    const allowedManagedById =
+      requester.role === UserRole.DIRECTION ? requesterId : requester.managedById;
+
+    if (destination.managedById !== allowedManagedById) {
+      throw new ForbiddenException('No tienes permiso para acceder a este destino');
+    }
+
+    return destination;
   }
 
   private async getDriverManagedById(driverId: number): Promise<number | null> {
@@ -193,7 +225,11 @@ export class DestinationService {
     return this.enrichManyDestinationsWithTripsInfo(destinations as DestinationResponse[]);
   }
 
-  async findOne(id: number): Promise<DestinationResponse> {
+  async findOne(id: number, requesterId?: number): Promise<DestinationResponse> {
+    if (requesterId !== undefined) {
+      await this.assertDestinationAccess(requesterId, id);
+    }
+
     const destination = await this.prisma.destination.findUnique({
       where: { id },
       select: this.destinationSelect,
@@ -209,10 +245,11 @@ export class DestinationService {
   }
 
   async update(
+    requesterId: number,
     id: number,
     data: UpdateDestinationDto,
   ): Promise<DestinationResponse> {
-    await this.findOne(id);
+    await this.assertDestinationAccess(requesterId, id);
 
     if (data.name) {
       const normalizedName = data.name.trim();
@@ -262,8 +299,8 @@ export class DestinationService {
     );
   }
 
-  async remove(id: number): Promise<DestinationResponse> {
-    const currentDestination = await this.findOne(id);
+  async remove(requesterId: number, id: number): Promise<DestinationResponse> {
+    const currentDestination = await this.findOne(id, requesterId);
 
     const tripHistoryCount = await this.prisma.tripHistory.count({
       where: { destinationId: id },

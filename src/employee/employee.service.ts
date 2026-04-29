@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -26,6 +27,34 @@ export class EmployeeService {
     });
     if (requester?.role === UserRole.ADMIN) return undefined;
     return requesterId;
+  }
+
+  private async assertEmployeeAccess(requesterId: number, id: number) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true, managedById: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const employee = await this.prisma.employee.findUnique({
+      where: { id },
+      select: { id: true, managedById: true },
+    });
+
+    if (!employee) throw new NotFoundException('Employee not found');
+    if (requester.role === UserRole.ADMIN) return employee;
+
+    const allowedManagedById =
+      requester.role === UserRole.DIRECTION ? requesterId : requester.managedById;
+
+    if (employee.managedById !== allowedManagedById) {
+      throw new ForbiddenException('No tienes permiso para acceder a este funcionario');
+    }
+
+    return employee;
   }
 
   async findActive(requesterId: number): Promise<EmployeeResponse[]> {
@@ -73,13 +102,19 @@ export class EmployeeService {
     });
   }
 
-  async findOne(id: number): Promise<EmployeeResponse> {
+  async findOne(id: number, requesterId?: number): Promise<EmployeeResponse> {
+    if (requesterId !== undefined) {
+      await this.assertEmployeeAccess(requesterId, id);
+    }
+
     const employee = await this.prisma.employee.findUnique({ where: { id } });
     if (!employee) throw new NotFoundException('Employee not found');
     return employee;
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(requesterId: number, id: number): Promise<void> {
+    await this.assertEmployeeAccess(requesterId, id);
+
     const employee = await this.prisma.employee.findUnique({
       where: { id },
       include: { _count: { select: { tripHistories: true } } },
@@ -96,20 +131,18 @@ export class EmployeeService {
     await this.prisma.employee.delete({ where: { id } });
   }
 
-  async update(id: number, dto: UpdateEmployeeDto): Promise<EmployeeResponse> {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee not found');
-    }
+  async update(
+    requesterId: number,
+    id: number,
+    dto: UpdateEmployeeDto,
+  ): Promise<EmployeeResponse> {
+    const employee = await this.assertEmployeeAccess(requesterId, id);
 
     if (dto.name) {
       const normalizedName = dto.name.trim();
       const existing = await this.prisma.employee.findFirst({
         where: {
+          managedById: employee.managedById,
           name: {
             equals: normalizedName,
             mode: 'insensitive',
