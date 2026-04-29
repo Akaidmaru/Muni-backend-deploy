@@ -63,6 +63,52 @@ export class DailyMaintenanceRecordService {
     return truck;
   }
 
+  private async findTruckOrThrow(truckId: number) {
+    const truck = await this.prisma.truck.findUnique({
+      where: { id: truckId },
+      select: { id: true, mileage: true },
+    });
+
+    if (!truck) {
+      throw new NotFoundException(`Truck con ID ${truckId} no encontrado`);
+    }
+
+    return truck;
+  }
+
+  private async assertDailyMaintenanceDriverAccess(
+    requesterId: number,
+    driverId: number,
+  ) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const driver = await this.prisma.user.findUnique({
+      where: { id: driverId },
+      select: { id: true },
+    });
+
+    if (!driver) {
+      throw new NotFoundException(`Driver con ID ${driverId} no encontrado`);
+    }
+
+    if (
+      requester.role !== UserRole.ADMIN &&
+      requester.role !== UserRole.DIRECTION &&
+      driverId !== requesterId
+    ) {
+      throw new ForbiddenException('No tienes permiso para usar este conductor');
+    }
+
+    return driver;
+  }
+
   private async assertDriverAccess(requesterId: number, driverId: number) {
     const scope = await this.getRequesterScope(requesterId);
     const driver = await this.prisma.user.findUnique({
@@ -141,9 +187,10 @@ export class DailyMaintenanceRecordService {
   }> {
     const { startOfDay, endOfDay } = this.getUtcDayRange(dto.inspectionDate);
 
-    // Verificar que el truck existe
-    const truck = await this.assertTruckAccess(requesterId, dto.truckId);
-    await this.assertDriverAccess(requesterId, dto.driverId);
+    // En registro diario la unicidad depende de driver + truck + fecha.
+    // No se valida managedById ni TruckAssignment para este flujo.
+    const truck = await this.findTruckOrThrow(dto.truckId);
+    await this.assertDailyMaintenanceDriverAccess(requesterId, dto.driverId);
 
     // Verificar que el driver (usuario) existe
     const driver = await this.prisma.user.findUnique({
@@ -159,6 +206,7 @@ export class DailyMaintenanceRecordService {
     const existingRecord = await this.prisma.dailyMaintenanceRecord.findFirst(
       {
         where: {
+          driverId: dto.driverId,
           truckId: dto.truckId,
           inspectionDate: {
             gte: startOfDay,
@@ -399,8 +447,10 @@ export class DailyMaintenanceRecordService {
     truckId: number,
     inspectionDate: Date,
   ) {
-    await this.assertTruckAccess(requesterId, truckId);
-    await this.assertDriverAccess(requesterId, driverId);
+    // En registro diario la búsqueda es exactamente por driver + truck + fecha.
+    // No se valida managedById ni TruckAssignment para este flujo.
+    await this.findTruckOrThrow(truckId);
+    await this.assertDailyMaintenanceDriverAccess(requesterId, driverId);
     const { startOfDay, endOfDay } = this.getUtcDayRange(inspectionDate);
 
     return await this.prisma.dailyMaintenanceRecord.findFirst({
@@ -633,7 +683,6 @@ export class DailyMaintenanceRecordService {
    * Obtener mileage actual sugerido para un truck por patente
    */
   async getTruckMileageSuggestionByPlate(requesterId: number, plate: string) {
-    const scope = await this.getRequesterScope(requesterId);
     const truck = await this.prisma.truck.findUnique({
       where: { plate },
       select: {
@@ -650,10 +699,6 @@ export class DailyMaintenanceRecordService {
 
     if (!truck) {
       throw new NotFoundException(`Truck con patente ${plate} no encontrado`);
-    }
-
-    if (scope.managedById !== undefined && truck.managedById !== scope.managedById) {
-      throw new ForbiddenException('No tienes permiso para acceder a este vehículo');
     }
 
     return {

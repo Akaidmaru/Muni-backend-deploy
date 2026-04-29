@@ -495,7 +495,7 @@ export class TripHistoryService {
 
     return this.prisma.tripHistory.create({
       data: {
-        date: new Date(),
+        date: operationalDate,
         startTime: dto.startTime,
         endTime: null,
         status: TripHistoryStatus.DRIVER_FILLING,
