@@ -31,6 +31,10 @@ export class UpdateTripHistoryDto {
   status?: TripHistoryStatus;
 
   @IsOptional()
+  @IsString()
+  observations?: string;
+
+  @IsOptional()
   @IsNumber()
   startKm?: number;
 

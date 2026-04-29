@@ -23,9 +23,11 @@ export class EmployeeService {
   private async getManagedById(requesterId: number): Promise<number | undefined> {
     const requester = await this.prisma.user.findUnique({
       where: { id: requesterId },
-      select: { role: true },
+      select: { role: true, managedById: true },
     });
     if (requester?.role === UserRole.ADMIN) return undefined;
+    if (requester?.role === UserRole.DIRECTION) return requesterId;
+    if (requester?.managedById) return requester.managedById;
     return requesterId;
   }
 
