@@ -2,12 +2,15 @@ import { PartialType } from '@nestjs/mapped-types';
 import { CreateTruckDto } from './create-truck.dto';
 import {
   IsDateString,
+  IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   Min,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { TruckStatus } from '@prisma/client';
 
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -82,6 +85,31 @@ export class UpdateTruckDto extends PartialType(CreateTruckDto) {
     return Number(value);
   })
   mileage?: number;
+
+  @ApiPropertyOptional({
+    enum: TruckStatus,
+    example: TruckStatus.INACTIVE,
+    description: 'Estado operativo del camión',
+  })
+  @IsOptional()
+  @IsEnum(TruckStatus)
+  status?: TruckStatus;
+
+  @ApiPropertyOptional({
+    example: 4,
+    description: 'ID del usuario gestor ADMIN o DIRECTION',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsInt()
+  @Transform(({ value }) => {
+    if (value === null) return null;
+    if (value === '' || value === undefined) {
+      return undefined;
+    }
+    return Number(value);
+  })
+  managedById?: number | null;
 
   @ApiPropertyOptional({
     example: '2026-12-31',

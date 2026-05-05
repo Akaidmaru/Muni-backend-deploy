@@ -51,7 +51,7 @@ export class EmployeeController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   async create(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateEmployeeDto,

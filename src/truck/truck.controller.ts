@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Param,
@@ -22,6 +23,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
 import { AssignUserDto } from './dto/assign-user.dto';
+import { SetTruckUsersDto } from './dto/set-truck-users.dto';
 import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
 import { UploadTruckDocumentDto } from './dto/upload-truck-document.dto';
 import type { Request } from 'express';
@@ -309,6 +311,21 @@ export class TruckController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.truckService.getUsersOfTruck(Number(req.user.id), id);
+  }
+
+  @Put(':id/users')
+  @Roles('ADMIN', 'DIRECTION')
+  @ApiOperation({ summary: 'Sincronizar conductores asignados a un camión' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conductores sincronizados correctamente',
+  })
+  setUsersOfTruck(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetTruckUsersDto,
+  ) {
+    return this.truckService.setUsersOfTruck(Number(req.user.id), id, dto.userIds);
   }
 
   @Post('plate-change')

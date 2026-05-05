@@ -13,6 +13,12 @@ export type DestinationResponse = {
   id: number;
   name: string;
   active: boolean;
+  managedById?: number | null;
+  managedBy?: {
+    id: number;
+    name: string | null;
+    email: string;
+  } | null;
   tripsCount?: number;
   lastTripDate?: string | null;
   status?: 'En transcurso' | 'Completado' | null;
@@ -25,9 +31,22 @@ export class DestinationService {
   private async getManagedById(requesterId: number): Promise<number | undefined> {
     const requester = await this.prisma.user.findUnique({
       where: { id: requesterId },
-      select: { role: true },
+      select: { role: true, managedById: true },
+    });
+    if (requester?.role === UserRole.ADMIN) return requesterId;
+    if (requester?.role === UserRole.DIRECTION) return requesterId;
+    if (requester?.managedById) return requester.managedById;
+    return requesterId;
+  }
+
+  private async getReadFilter(requesterId: number): Promise<number | undefined> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true, managedById: true },
     });
     if (requester?.role === UserRole.ADMIN) return undefined;
+    if (requester?.role === UserRole.DIRECTION) return requesterId;
+    if (requester?.managedById) return requester.managedById;
     return requesterId;
   }
 
@@ -60,6 +79,31 @@ export class DestinationService {
     }
 
     return destination;
+  }
+
+  private async assertManagedByTarget(requesterId: number, managedById?: number) {
+    if (managedById === undefined) return;
+
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    if (requester?.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Solo un administrador puede cambiar el gestor');
+    }
+
+    const manager = await this.prisma.user.findUnique({
+      where: { id: managedById },
+      select: { id: true, role: true },
+    });
+
+    if (
+      !manager ||
+      (manager.role !== UserRole.ADMIN && manager.role !== UserRole.DIRECTION)
+    ) {
+      throw new NotFoundException('Usuario gestor no encontrado');
+    }
   }
 
   private async getDriverManagedById(driverId: number): Promise<number | null> {
@@ -140,6 +184,14 @@ export class DestinationService {
       id: true,
       name: true,
       active: true,
+      managedById: true,
+      managedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     };
   }
 
@@ -204,9 +256,9 @@ export class DestinationService {
   }
 
   async findAll(requesterId: number): Promise<DestinationResponse[]> {
-    const managedById = await this.getManagedById(requesterId);
+    const managedById = await this.getReadFilter(requesterId);
     const destinations = await this.prisma.destination.findMany({
-      where: { managedById },
+      where: managedById !== undefined ? { managedById } : {},
       orderBy: { name: 'asc' },
       select: this.destinationSelect,
     });
@@ -215,9 +267,22 @@ export class DestinationService {
   }
 
   async findAllActive(requesterId: number): Promise<DestinationResponse[]> {
-    const managedById = await this.getDriverManagedById(requesterId);
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true, managedById: true },
+    });
+
+    let whereFilter = {};
+    if (requester?.role === UserRole.ADMIN) {
+      whereFilter = { active: true };
+    } else if (requester?.role === UserRole.DIRECTION) {
+      whereFilter = { active: true, managedById: requesterId };
+    } else {
+      whereFilter = { active: true, managedById: requester?.managedById };
+    }
+
     const destinations = await this.prisma.destination.findMany({
-      where: { active: true, managedById },
+      where: whereFilter,
       orderBy: { name: 'asc' },
       select: this.destinationSelect,
     });
@@ -250,6 +315,7 @@ export class DestinationService {
     data: UpdateDestinationDto,
   ): Promise<DestinationResponse> {
     await this.assertDestinationAccess(requesterId, id);
+    await this.assertManagedByTarget(requesterId, data.managedById);
 
     if (data.name) {
       const normalizedName = data.name.trim();
@@ -257,9 +323,10 @@ export class DestinationService {
         where: { id },
         select: { managedById: true },
       });
+      const nextManagedById = data.managedById ?? current?.managedById;
       const existing = await this.prisma.destination.findFirst({
         where: {
-          managedById: current?.managedById,
+          managedById: nextManagedById,
           name: {
             equals: normalizedName,
             mode: 'insensitive',
@@ -278,6 +345,7 @@ export class DestinationService {
     const updateData: {
       name?: string;
       active?: boolean;
+      managedById?: number;
     } = {};
 
     if (data.name !== undefined) {
@@ -286,6 +354,10 @@ export class DestinationService {
 
     if (data.active !== undefined) {
       updateData.active = data.active;
+    }
+
+    if (data.managedById !== undefined) {
+      updateData.managedById = data.managedById;
     }
 
     const destination = await this.prisma.destination.update({
