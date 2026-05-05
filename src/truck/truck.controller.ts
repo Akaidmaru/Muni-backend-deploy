@@ -49,7 +49,7 @@ export class TruckController {
   ) {}
 
   @Post()
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Crear camión (ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -66,7 +66,7 @@ export class TruckController {
   }
 
   @Get()
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   @ApiOperation({ summary: 'Listar todos los camiones (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -86,7 +86,7 @@ export class TruckController {
   }
 
   @Get('unassigned')
-  @Roles('DRIVER', 'ADMIN')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({ summary: 'Listar camiones sin asignar a conductores (DRIVER/ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -126,8 +126,8 @@ export class TruckController {
     status: 200,
     description: 'Alertas de fuera de servicio por avería',
   })
-  getOutOfServiceAlerts() {
-    return this.truckService.getOutOfServiceAlerts();
+  getOutOfServiceAlerts(@Req() req: AuthenticatedRequest) {
+    return this.truckService.getOutOfServiceAlerts(Number(req.user.id));
   }
 
   @Get(':id/documents')
@@ -162,7 +162,7 @@ export class TruckController {
   }
 
   @Post(':id/documents')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
@@ -198,7 +198,7 @@ export class TruckController {
   }
 
   @Delete(':id/documents/:documentId')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Eliminar un documento de vehiculo' })
   @ApiResponse({
     status: 200,
@@ -213,7 +213,7 @@ export class TruckController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   @ApiOperation({ summary: 'Obtener camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -233,7 +233,7 @@ export class TruckController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Actualizar camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -254,7 +254,7 @@ export class TruckController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Eliminar camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -274,7 +274,7 @@ export class TruckController {
   }
 
   @Post('assign')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Asignar usuario a camión (ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -314,7 +314,7 @@ export class TruckController {
   }
 
   @Put(':id/users')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Sincronizar conductores asignados a un camión' })
   @ApiResponse({
     status: 200,
@@ -329,7 +329,7 @@ export class TruckController {
   }
 
   @Post('plate-change')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN')
+  @Roles('DRIVER', 'ADMIN')
   @ApiOperation({
     summary:
       'Registrar cambio de patente. Si el motivo es AVERIA, el camión queda INACTIVE.',

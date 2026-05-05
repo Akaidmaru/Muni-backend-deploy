@@ -308,4 +308,14 @@ export class MonthlyMaintenanceRecordService {
       },
     });
   }
+
+  async removeAdmin(requesterId: number, recordId: number) {
+    await this.assertRecordAccess(requesterId, recordId);
+
+    await this.prisma.monthlyMaintenanceRecord.delete({
+      where: { id: recordId },
+    });
+
+    return { message: 'Registro mensual eliminado correctamente' };
+  }
 }

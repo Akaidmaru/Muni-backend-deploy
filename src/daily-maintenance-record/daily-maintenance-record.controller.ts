@@ -60,7 +60,7 @@ export class DailyMaintenanceRecordController {
   ) {}
 
   @Post()
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER')
   @ApiOperation({
     summary: 'Crear registro de mantenimiento diario del vehículo',
   })
@@ -76,29 +76,35 @@ export class DailyMaintenanceRecordController {
   }
 
   @Get()
-  @Roles('EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   @ApiOperation({ summary: 'Listar todos los registros de mantenimiento' })
   @ApiResponse({
     status: 200,
     description: 'Lista de registros de mantenimiento',
   })
   async findAll(@Req() req: AuthenticatedRequest) {
-    return await this.DailyMaintenanceRecordService.findAll(Number(req.user.id));
+    return await this.DailyMaintenanceRecordService.findAll(
+      Number(req.user.id),
+    );
   }
 
   @Get('admin')
   @Roles('ADMIN', 'DIRECTION')
-  @ApiOperation({ summary: 'Listar todos los registros de mantenimiento (ADMIN)' })
+  @ApiOperation({
+    summary: 'Listar todos los registros de mantenimiento (ADMIN)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de registros de mantenimiento (solo ADMIN)',
   })
   async findAllAdmin(@Req() req: AuthenticatedRequest) {
-    return await this.DailyMaintenanceRecordService.findAll(Number(req.user.id));
+    return await this.DailyMaintenanceRecordService.findAll(
+      Number(req.user.id),
+    );
   }
 
   @Get('truck/:truckId')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({ summary: 'Obtener registros de mantenimiento por vehículo' })
   @ApiResponse({
     status: 200,
@@ -115,7 +121,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Get('truck/:truckId/date')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({
     summary: 'Obtener registro de mantenimiento por vehículo y fecha',
   })
@@ -138,7 +144,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Get('driver/:driverId/date')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({
     summary: 'Obtener registro de mantenimiento por conductor y fecha',
   })
@@ -161,7 +167,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Get('driver/:driverId/truck/:truckId/date')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({
     summary:
       'Obtener registro de mantenimiento por conductor, vehículo y fecha',
@@ -187,7 +193,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Get('mileage-suggestion/:truckId')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({
     summary: 'Obtener sugerencia de kilometraje actual del vehículo',
   })
@@ -206,7 +212,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Get('mileage-suggestion/plate/:plate')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({
     summary:
       'Obtener sugerencia de kilometraje actual del vehículo por patente',
@@ -226,7 +232,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Get(':id')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({ summary: 'Obtener registro de mantenimiento por ID' })
   @ApiResponse({
     status: 200,
@@ -254,7 +260,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Patch('admin/:id/status')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Actualizar estado diario (solo ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -273,7 +279,7 @@ export class DailyMaintenanceRecordController {
   }
 
   @Patch(':id')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN', 'DIRECTION')
+  @Roles('DRIVER', 'ADMIN')
   @ApiOperation({ summary: 'Actualizar registro de mantenimiento' })
   @ApiResponse({
     status: 200,

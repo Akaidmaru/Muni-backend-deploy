@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -35,7 +36,7 @@ export class MonthlyMaintenanceRecordController {
   ) {}
 
   @Get('admin')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Listar mantenimientos mensuales (solo ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -46,7 +47,7 @@ export class MonthlyMaintenanceRecordController {
   }
 
   @Get('admin/truck/:truckId/month')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({
     summary: 'Obtener mantenimiento mensual por camión y mes (solo ADMIN)',
   })
@@ -73,7 +74,7 @@ export class MonthlyMaintenanceRecordController {
   }
 
   @Post('admin')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Crear o actualizar mantenimiento mensual (solo ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -90,7 +91,7 @@ export class MonthlyMaintenanceRecordController {
   }
 
   @Patch('admin/:id/status')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Actualizar estado mensual (solo ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -105,6 +106,23 @@ export class MonthlyMaintenanceRecordController {
       Number(req.user.id),
       id,
       dto.status,
+    );
+  }
+
+  @Delete('admin/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Eliminar mantenimiento mensual (solo ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Registro mensual eliminado correctamente',
+  })
+  async removeAdmin(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return await this.monthlyMaintenanceRecordService.removeAdmin(
+      Number(req.user.id),
+      id,
     );
   }
 }

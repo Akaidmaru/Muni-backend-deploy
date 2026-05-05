@@ -24,11 +24,11 @@ interface AuthenticatedRequest extends Request {
 }
 
 @Controller('destinations')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class DestinationController {
   constructor(private readonly destinationService: DestinationService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
   async findAll(
     @Req() req: AuthenticatedRequest,
@@ -37,7 +37,7 @@ export class DestinationController {
   }
 
   @Get('active')
-  @UseGuards(JwtAuthGuard)
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   async findAllActive(
     @Req() req: AuthenticatedRequest,
   ): Promise<DestinationResponse[]> {
@@ -45,7 +45,7 @@ export class DestinationController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   async findOne(
     @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
@@ -54,8 +54,7 @@ export class DestinationController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
+  @Roles('ADMIN', 'DRIVER')
   async create(
     @Req() req: AuthenticatedRequest,
     @Body() data: CreateDestinationDto,
@@ -64,8 +63,7 @@ export class DestinationController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   async update(
     @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
@@ -75,8 +73,7 @@ export class DestinationController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   async remove(
     @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
