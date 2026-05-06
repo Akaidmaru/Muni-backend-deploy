@@ -212,6 +212,17 @@ export class TruckController {
     return this.truckService.removeDocument(Number(req.user.id), id, documentId);
   }
 
+  @Get('managed-by-my-manager')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
+  @ApiOperation({ summary: 'Listar camiones administrados por el gestor del conductor autenticado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Camiones del gestor del conductor autenticado',
+  })
+  findManagedByMyManager(@Req() req: AuthenticatedRequest) {
+    return this.truckService.findManagedByMyManager(Number(req.user.id));
+  }
+
   @Get(':id')
   @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   @ApiOperation({ summary: 'Obtener camión por ID (ADMIN)' })

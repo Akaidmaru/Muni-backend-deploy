@@ -365,6 +365,33 @@ export class TruckService {
     });
   }
 
+  async findManagedByMyManager(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { managedById: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (user.managedById === null) {
+      return [];
+    }
+
+    return this.prisma.truck.findMany({
+      where: {
+        managedById: user.managedById,
+        status: TruckStatus.ACTIVE,
+      },
+      select: {
+        id: true,
+        plate: true,
+      },
+      orderBy: { plate: 'asc' },
+    });
+  }
+
   async findUnassigned(userId: number) {
     const requester = await this.prisma.user.findUnique({
       where: { id: userId },

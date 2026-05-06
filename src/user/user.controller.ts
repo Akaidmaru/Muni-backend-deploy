@@ -122,7 +122,7 @@ export class UserController {
     },
   })
   getMyTrucks(@Req() req: AuthenticatedRequest) {
-    return this.userService.getTrucksOfUser(Number(req.user.id), true);
+    return this.userService.getTrucksOfUser(Number(req.user.id));
   }
 
   @Get('verified')
@@ -177,7 +177,6 @@ export class UserController {
   getTrucksOfUser(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.userService.getTrucksOfUser(
       Number(id),
-      false,
       Number(req.user.id),
     );
   }

@@ -281,11 +281,7 @@ export class UserService {
     return user;
   }
 
-  async getTrucksOfUser(
-    userId: number,
-    includeUnassignedFallback = false,
-    requesterId?: number,
-  ) {
+  async getTrucksOfUser(userId: number, requesterId?: number) {
     if (requesterId !== undefined) {
       await this.assertUserAccess(requesterId, userId);
     }
@@ -300,21 +296,7 @@ export class UserService {
       include: { truck: true },
     });
 
-    if (assignments.length > 0 || !includeUnassignedFallback) {
-      return assignments.map((a) => a.truck);
-    }
-
-    return this.prisma.truck.findMany({
-      where: {
-        status: TruckStatus.ACTIVE,
-        users: {
-          none: {},
-        },
-      },
-      orderBy: {
-        plate: 'asc',
-      },
-    });
+    return assignments.map((a) => a.truck);
   }
 
   async findByEmail(email: string) {
