@@ -25,11 +25,12 @@ interface AuthenticatedRequest extends Request {
 }
 
 @Controller('employees')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class EmployeeController {
   constructor(private readonly employeeService: EmployeeService) {}
 
   @Get()
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   async findActive(@Req() req: AuthenticatedRequest): Promise<EmployeeResponse[]> {
     return this.employeeService.findActive(Number(req.user.id));
   }
@@ -42,6 +43,7 @@ export class EmployeeController {
   }
 
   @Get(':id')
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   async findOne(
     @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
@@ -50,8 +52,7 @@ export class EmployeeController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN', 'DRIVER')
   async create(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateEmployeeDto,
@@ -60,7 +61,6 @@ export class EmployeeController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTION')
   async update(
     @Req() req: AuthenticatedRequest,
@@ -72,8 +72,7 @@ export class EmployeeController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   async remove(
     @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,

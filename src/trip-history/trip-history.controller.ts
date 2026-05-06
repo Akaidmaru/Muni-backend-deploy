@@ -64,6 +64,8 @@ export class TripHistoryController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER', 'EMPLOYEE')
   async findByUserAccess(
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,

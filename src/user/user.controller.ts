@@ -72,7 +72,8 @@ export class UserController {
   }
 
   @Get('by-roles')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTION')
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -101,7 +102,8 @@ export class UserController {
   }
 
   @Get('me/trucks')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Listar camiones asignados al usuario autenticado',
@@ -120,7 +122,7 @@ export class UserController {
     },
   })
   getMyTrucks(@Req() req: AuthenticatedRequest) {
-    return this.userService.getTrucksOfUser(Number(req.user.id), true);
+    return this.userService.getTrucksOfUser(Number(req.user.id));
   }
 
   @Get('verified')
@@ -175,14 +177,13 @@ export class UserController {
   getTrucksOfUser(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.userService.getTrucksOfUser(
       Number(id),
-      false,
       Number(req.user.id),
     );
   }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear usuario por administrador' })
   @ApiResponse({
@@ -276,7 +277,7 @@ export class UserController {
 
   @Patch(':id/reset-password')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Restablecer contraseña de un usuario (ADMIN)' })
   @ApiResponse({
@@ -321,7 +322,7 @@ export class UserController {
     },
   })
   @ApiBearerAuth()
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   adminUpdateUser(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -336,7 +337,7 @@ export class UserController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Eliminar usuario por administrador' })
   @ApiResponse({

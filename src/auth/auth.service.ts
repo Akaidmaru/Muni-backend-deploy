@@ -42,6 +42,8 @@ interface CurrentUserResponse {
   rut: string;
   name: string | null;
   role: string;
+  managedById: number | null;
+  managedByRole: string | null;
 }
 
 interface OccupationDelegate {
@@ -338,6 +340,10 @@ export class AuthService {
         rut: true,
         name: true,
         role: true,
+        managedById: true,
+        managedByUser: {
+          select: { role: true },
+        },
         isVerified: true,
         password: true,
       },
@@ -371,6 +377,8 @@ export class AuthService {
         rut: user.rut,
         name: user.name,
         role: user.role,
+        managedById: user.managedById,
+        managedByRole: user.managedByUser?.role ?? null,
       },
     };
   }
@@ -384,6 +392,10 @@ export class AuthService {
         rut: true,
         name: true,
         role: true,
+        managedById: true,
+        managedByUser: {
+          select: { role: true },
+        },
       },
     });
 
@@ -391,7 +403,15 @@ export class AuthService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    return user as CurrentUserResponse;
+    return {
+      id: user.id,
+      email: user.email,
+      rut: user.rut,
+      name: user.name,
+      role: user.role,
+      managedById: user.managedById,
+      managedByRole: user.managedByUser?.role ?? null,
+    };
   }
 
   async logout(authHeader?: string) {

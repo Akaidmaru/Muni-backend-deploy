@@ -45,6 +45,36 @@ export class TruckService {
     uploadedAt: true,
   } as const;
 
+  private readonly truckInclude = {
+    managedBy: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    },
+    users: {
+      where: {
+        user: {
+          role: UserRole.DRIVER,
+        },
+      },
+      select: {
+        userId: true,
+        truckId: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    },
+  } satisfies Prisma.TruckInclude;
+
   private parseDocumentType(value: string): TruckDocumentType {
     const normalized = String(value || '').trim().toUpperCase();
     const allowed = Object.values(TruckDocumentType) as string[];
@@ -227,6 +257,44 @@ export class TruckService {
     return managedById === userId;
   }
 
+  private async assertTruckReadAccess(userId: number, truckId: number) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const truck = await this.prisma.truck.findUnique({
+      where: { id: truckId },
+      select: {
+        id: true,
+        managedById: true,
+        users: {
+          where: { userId },
+          select: { userId: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!truck) {
+      throw new NotFoundException(`Camión con ID ${truckId} no encontrado`);
+    }
+
+    if (requester.role === UserRole.ADMIN) return truck;
+    if (requester.role === UserRole.DIRECTION && truck.managedById === userId) {
+      return truck;
+    }
+    if (requester.role === UserRole.DRIVER && truck.users.length > 0) {
+      return truck;
+    }
+
+    throw new ForbiddenException('No tienes permiso para acceder a este camión');
+  }
+
   private async assertTruckAccess(userId: number, truckId: number) {
     const truck = await this.prisma.truck.findUnique({
       where: { id: truckId },
@@ -250,7 +318,10 @@ export class TruckService {
     data.managedById = managedById ?? null;
 
     try {
-      return await this.prisma.truck.create({ data });
+      return await this.prisma.truck.create({
+        data,
+        include: this.truckInclude,
+      });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -264,36 +335,79 @@ export class TruckService {
   }
 
   async findAll(userId: number) {
-    const managedById = await this.getManagedById(userId);
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    if (requester.role === UserRole.DRIVER) {
+      return this.prisma.truck.findMany({
+        where: {
+          users: {
+            some: { userId },
+          },
+        },
+        include: this.truckInclude,
+        orderBy: { id: 'desc' },
+      });
+    }
+
+    const managedById = requester.role === UserRole.ADMIN ? undefined : userId;
 
     return this.prisma.truck.findMany({
       where: { managedById },
-      include: {
-        users: {
-          where: {
-            user: {
-              role: UserRole.DRIVER,
-            },
-          },
-          select: {
-            userId: true,
-            truckId: true,
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-              },
-            },
-          },
-        },
+      include: this.truckInclude,
+      orderBy: { id: 'desc' },
+    });
+  }
+
+  async findManagedByMyManager(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { managedById: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (user.managedById === null) {
+      return [];
+    }
+
+    return this.prisma.truck.findMany({
+      where: {
+        managedById: user.managedById,
+        status: TruckStatus.ACTIVE,
       },
+      select: {
+        id: true,
+        plate: true,
+      },
+      orderBy: { plate: 'asc' },
     });
   }
 
   async findUnassigned(userId: number) {
-    const managedById = await this.getManagedById(userId);
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, managedById: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario solicitante no encontrado');
+    }
+
+    const managedById =
+      requester.role === UserRole.ADMIN
+        ? undefined
+        : requester.role === UserRole.DIRECTION
+          ? userId
+          : requester.managedById;
 
     return this.prisma.truck.findMany({
       where: {
@@ -314,31 +428,11 @@ export class TruckService {
   }
 
   async findOne(userId: number, id: number) {
-    await this.assertTruckAccess(userId, id);
+    await this.assertTruckReadAccess(userId, id);
 
     const truck = await this.prisma.truck.findUnique({
       where: { id },
-      include: {
-        users: {
-          where: {
-            user: {
-              role: UserRole.DRIVER,
-            },
-          },
-          select: {
-            userId: true,
-            truckId: true,
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-              },
-            },
-          },
-        },
-      },
+      include: this.truckInclude,
     });
 
     if (!truck) {
@@ -517,10 +611,50 @@ export class TruckService {
   async update(userId: number, id: number, dto: UpdateTruckDto) {
     await this.assertTruckAccess(userId, id);
 
-    const data = this.sanitizeTruckUpdateInput(dto);
+    const { managedById, ...truckDto } = dto;
+    const data = this.sanitizeTruckUpdateInput(truckDto as UpdateTruckDto);
+
+    if (managedById !== undefined) {
+      const requester = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+
+      if (requester?.role !== UserRole.ADMIN) {
+        throw new ForbiddenException('Solo un administrador puede cambiar el gestor');
+      }
+
+      if (managedById === null) {
+        data.managedById = null;
+      } else {
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managedById },
+        select: { id: true, role: true },
+      });
+
+      if (!manager) {
+        throw new NotFoundException('El usuario gestor no existe');
+      }
+
+      if (
+        manager.role !== UserRole.ADMIN &&
+        manager.role !== UserRole.DIRECTION
+      ) {
+        throw new ForbiddenException(
+          'El usuario gestor debe tener rol ADMIN o DIRECTION',
+        );
+      }
+
+      data.managedById = managedById;
+      }
+    }
 
     try {
-      return await this.prisma.truck.update({ where: { id }, data });
+      return await this.prisma.truck.update({
+        where: { id },
+        data,
+        include: this.truckInclude,
+      });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -616,6 +750,53 @@ export class TruckService {
     return assignments.map((a) => a.user);
   }
 
+  async setUsersOfTruck(requesterId: number, truckId: number, userIds: number[]) {
+    const truck = await this.assertTruckAccess(requesterId, truckId);
+    const uniqueUserIds = [...new Set(userIds)];
+
+    if (uniqueUserIds.length > 0) {
+      const users = await this.prisma.user.findMany({
+        where: {
+          id: { in: uniqueUserIds },
+          role: UserRole.DRIVER,
+        },
+        select: {
+          id: true,
+          managedById: true,
+        },
+      });
+
+      if (users.length !== uniqueUserIds.length) {
+        throw new BadRequestException(
+          'Solo se pueden asignar usuarios existentes con rol Conductor',
+        );
+      }
+
+      for (const user of users) {
+        if (!(await this.canManageScopedResource(requesterId, user.managedById))) {
+          throw new ForbiddenException(
+            'No tienes permiso para asignar uno o más conductores',
+          );
+        }
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.truckAssignment.deleteMany({ where: { truckId: truck.id } });
+      if (uniqueUserIds.length > 0) {
+        await tx.truckAssignment.createMany({
+          data: uniqueUserIds.map((userId) => ({ userId, truckId: truck.id })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    return this.prisma.truck.findUnique({
+      where: { id: truck.id },
+      include: this.truckInclude,
+    });
+  }
+
   async registerPlateChange(userId: number, dto: RegisterPlateChangeDto) {
     return this.prisma.$transaction(async (tx) => {
       const requester = await tx.user.findUnique({
@@ -679,13 +860,15 @@ export class TruckService {
     });
   }
 
-  async getOutOfServiceAlerts() {
+  async getOutOfServiceAlerts(userId: number) {
+    const managedById = await this.getManagedById(userId);
     const logs = await this.prisma.truckPlateChangeLog.findMany({
       where: {
         reason: PlateChangeReason.AVERIA,
         newStatus: TruckStatus.INACTIVE,
         truck: {
           status: TruckStatus.INACTIVE,
+          ...(managedById !== undefined ? { managedById } : {}),
         },
       },
       include: {

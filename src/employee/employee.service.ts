@@ -13,6 +13,12 @@ export type EmployeeResponse = {
   id: number;
   name: string;
   active: boolean;
+  managedById: number | null;
+  managedBy?: {
+    id: number;
+    name: string | null;
+    email: string;
+  } | null;
   createdAt: Date;
 };
 
@@ -20,7 +26,35 @@ export type EmployeeResponse = {
 export class EmployeeService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private get employeeSelect() {
+    return {
+      id: true,
+      name: true,
+      active: true,
+      managedById: true,
+      createdAt: true,
+      managedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    };
+  }
+
   private async getManagedById(requesterId: number): Promise<number | undefined> {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true, managedById: true },
+    });
+    if (requester?.role === UserRole.ADMIN) return requesterId;
+    if (requester?.role === UserRole.DIRECTION) return requesterId;
+    if (requester?.managedById) return requester.managedById;
+    return requesterId;
+  }
+
+  private async getReadFilter(requesterId: number): Promise<number | undefined> {
     const requester = await this.prisma.user.findUnique({
       where: { id: requesterId },
       select: { role: true, managedById: true },
@@ -59,19 +93,46 @@ export class EmployeeService {
     return employee;
   }
 
+  private async assertManagedByTarget(requesterId: number, managedById?: number) {
+    if (managedById === undefined) return;
+
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    if (requester?.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Solo un administrador puede cambiar el gestor');
+    }
+
+    const manager = await this.prisma.user.findUnique({
+      where: { id: managedById },
+      select: { id: true, role: true },
+    });
+
+    if (
+      !manager ||
+      (manager.role !== UserRole.ADMIN && manager.role !== UserRole.DIRECTION)
+    ) {
+      throw new NotFoundException('Usuario gestor no encontrado');
+    }
+  }
+
   async findActive(requesterId: number): Promise<EmployeeResponse[]> {
-    const managedById = await this.getManagedById(requesterId);
+    const managedById = await this.getReadFilter(requesterId);
     return this.prisma.employee.findMany({
-      where: { active: true, managedById },
+      where: managedById !== undefined ? { active: true, managedById } : { active: true },
       orderBy: { name: 'asc' },
+      select: this.employeeSelect,
     });
   }
 
   async findAll(requesterId: number): Promise<EmployeeResponse[]> {
-    const managedById = await this.getManagedById(requesterId);
+    const managedById = await this.getReadFilter(requesterId);
     return this.prisma.employee.findMany({
-      where: { managedById },
+      where: managedById !== undefined ? { managedById } : {},
       orderBy: [{ active: 'desc' }, { name: 'asc' }],
+      select: this.employeeSelect,
     });
   }
 
@@ -93,6 +154,7 @@ export class EmployeeService {
         return this.prisma.employee.update({
           where: { id: existing.id },
           data: { active: true },
+          select: this.employeeSelect,
         });
       }
 
@@ -101,6 +163,7 @@ export class EmployeeService {
 
     return this.prisma.employee.create({
       data: { name: normalizedName, active: true, managedById: storedManagedById },
+      select: this.employeeSelect,
     });
   }
 
@@ -109,7 +172,10 @@ export class EmployeeService {
       await this.assertEmployeeAccess(requesterId, id);
     }
 
-    const employee = await this.prisma.employee.findUnique({ where: { id } });
+    const employee = await this.prisma.employee.findUnique({
+      where: { id },
+      select: this.employeeSelect,
+    });
     if (!employee) throw new NotFoundException('Employee not found');
     return employee;
   }
@@ -139,12 +205,14 @@ export class EmployeeService {
     dto: UpdateEmployeeDto,
   ): Promise<EmployeeResponse> {
     const employee = await this.assertEmployeeAccess(requesterId, id);
+    await this.assertManagedByTarget(requesterId, dto.managedById);
+    const nextManagedById = dto.managedById ?? employee.managedById;
 
     if (dto.name) {
       const normalizedName = dto.name.trim();
       const existing = await this.prisma.employee.findFirst({
         where: {
-          managedById: employee.managedById,
+          managedById: nextManagedById,
           name: {
             equals: normalizedName,
             mode: 'insensitive',
@@ -161,9 +229,15 @@ export class EmployeeService {
       dto.name = normalizedName;
     }
 
+    const { managedById, ...updateDto } = dto;
+
     return this.prisma.employee.update({
       where: { id },
-      data: dto,
+      data: {
+        ...updateDto,
+        ...(managedById !== undefined ? { managedById } : {}),
+      },
+      select: this.employeeSelect,
     });
   }
 }

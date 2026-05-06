@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsInt,
   IsOptional,
   IsString,
   MaxLength,
@@ -18,4 +19,8 @@ export class UpdateDestinationDto {
   @IsBoolean()
   @IsOptional()
   active?: boolean;
+
+  @IsInt()
+  @IsOptional()
+  managedById?: number;
 }

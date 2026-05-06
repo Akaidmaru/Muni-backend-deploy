@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Param,
@@ -22,6 +23,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
 import { AssignUserDto } from './dto/assign-user.dto';
+import { SetTruckUsersDto } from './dto/set-truck-users.dto';
 import { RegisterPlateChangeDto } from './dto/register-plate-change.dto';
 import { UploadTruckDocumentDto } from './dto/upload-truck-document.dto';
 import type { Request } from 'express';
@@ -47,7 +49,7 @@ export class TruckController {
   ) {}
 
   @Post()
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Crear camión (ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -64,7 +66,7 @@ export class TruckController {
   }
 
   @Get()
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   @ApiOperation({ summary: 'Listar todos los camiones (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -84,7 +86,7 @@ export class TruckController {
   }
 
   @Get('unassigned')
-  @Roles('DRIVER', 'ADMIN')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
   @ApiOperation({ summary: 'Listar camiones sin asignar a conductores (DRIVER/ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -124,8 +126,8 @@ export class TruckController {
     status: 200,
     description: 'Alertas de fuera de servicio por avería',
   })
-  getOutOfServiceAlerts() {
-    return this.truckService.getOutOfServiceAlerts();
+  getOutOfServiceAlerts(@Req() req: AuthenticatedRequest) {
+    return this.truckService.getOutOfServiceAlerts(Number(req.user.id));
   }
 
   @Get(':id/documents')
@@ -160,7 +162,7 @@ export class TruckController {
   }
 
   @Post(':id/documents')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
@@ -196,7 +198,7 @@ export class TruckController {
   }
 
   @Delete(':id/documents/:documentId')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Eliminar un documento de vehiculo' })
   @ApiResponse({
     status: 200,
@@ -210,8 +212,19 @@ export class TruckController {
     return this.truckService.removeDocument(Number(req.user.id), id, documentId);
   }
 
+  @Get('managed-by-my-manager')
+  @Roles('DRIVER', 'ADMIN', 'DIRECTION')
+  @ApiOperation({ summary: 'Listar camiones administrados por el gestor del conductor autenticado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Camiones del gestor del conductor autenticado',
+  })
+  findManagedByMyManager(@Req() req: AuthenticatedRequest) {
+    return this.truckService.findManagedByMyManager(Number(req.user.id));
+  }
+
   @Get(':id')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER')
   @ApiOperation({ summary: 'Obtener camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -231,7 +244,7 @@ export class TruckController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Actualizar camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -252,7 +265,7 @@ export class TruckController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Eliminar camión por ID (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -272,7 +285,7 @@ export class TruckController {
   }
 
   @Post('assign')
-  @Roles('ADMIN', 'DIRECTION')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Asignar usuario a camión (ADMIN)' })
   @ApiResponse({
     status: 201,
@@ -311,8 +324,23 @@ export class TruckController {
     return this.truckService.getUsersOfTruck(Number(req.user.id), id);
   }
 
+  @Put(':id/users')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Sincronizar conductores asignados a un camión' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conductores sincronizados correctamente',
+  })
+  setUsersOfTruck(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetTruckUsersDto,
+  ) {
+    return this.truckService.setUsersOfTruck(Number(req.user.id), id, dto.userIds);
+  }
+
   @Post('plate-change')
-  @Roles('DRIVER', 'EMPLOYEE', 'ADMIN')
+  @Roles('DRIVER', 'ADMIN')
   @ApiOperation({
     summary:
       'Registrar cambio de patente. Si el motivo es AVERIA, el camión queda INACTIVE.',

@@ -51,10 +51,18 @@ export class TripHistoryService {
     private readonly destinationService: DestinationService,
   ) {}
 
-  private async resolveDriverManagedById(driverId: number): Promise<number | null> {
+  private async resolveDriverManagedById(
+    driverId: number,
+  ): Promise<{ managedById: number | null; managedByRole: UserRole | null }> {
     const driverUser = await this.prisma.user.findUnique({
       where: { id: driverId },
-      select: { managedById: true, role: true },
+      select: {
+        managedById: true,
+        role: true,
+        managedByUser: {
+          select: { role: true },
+        },
+      },
     });
 
     if (!driverUser) {
@@ -65,7 +73,10 @@ export class TripHistoryService {
       throw new ForbiddenException('El usuario no es un conductor');
     }
 
-    return driverUser.managedById ?? null;
+    return {
+      managedById: driverUser.managedById ?? null,
+      managedByRole: driverUser.managedByUser?.role ?? null,
+    };
   }
 
   private async getCachedSignedUrl(key: string): Promise<string | null> {
@@ -333,6 +344,7 @@ export class TripHistoryService {
       where: { id: tripHistoryId },
       select: {
         id: true,
+        signatureKey: true,
         truck: { select: { managedById: true } },
       },
     });
@@ -388,7 +400,19 @@ export class TripHistoryService {
   }
 
   async startTrip(userId: number, dto: StartTripDto, clientTimeZone?: string) {
-    const driverManagedById = await this.resolveDriverManagedById(userId);
+    const driverScope = await this.resolveDriverManagedById(userId);
+    const managerRole = driverScope.managedByRole;
+
+    if (
+      driverScope.managedById === null ||
+      (managerRole !== UserRole.ADMIN && managerRole !== UserRole.DIRECTION)
+    ) {
+      throw new ForbiddenException(
+        'La cuenta debe estar asociada a un usuario con rol ADMIN o DIRECTION para iniciar viajes.',
+      );
+    }
+
+    const driverManagedById = driverScope.managedById;
 
     const truck = await this.prisma.truck.findFirst({
       where: {
@@ -982,11 +1006,15 @@ export class TripHistoryService {
   }
 
   async remove(requesterId: number, tripHistoryId: number): Promise<void> {
-    await this.assertAdminTripAccess(requesterId, tripHistoryId);
+    const tripHistory = await this.assertAdminTripAccess(requesterId, tripHistoryId);
 
     await this.prisma.tripHistory.delete({
       where: { id: tripHistoryId },
     });
+
+    if (tripHistory.signatureKey) {
+      await this.s3Service.deleteObject(tripHistory.signatureKey);
+    }
   }
 }
 

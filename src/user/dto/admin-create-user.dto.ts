@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsOptional,
+  IsInt,
   IsString,
   MinLength,
 } from 'class-validator';
@@ -57,4 +58,12 @@ export class AdminCreateUserDto {
       'El rol debe ser PENDING_APPROVAL, EMPLOYEE, DRIVER o ADMIN',
   })
   role?: UserRole;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description: 'ID del usuario que gestiona la cuenta',
+  })
+  @IsOptional()
+  @IsInt({ message: 'El ID del usuario gestor debe ser un número entero' })
+  managedById?: number | null;
 }

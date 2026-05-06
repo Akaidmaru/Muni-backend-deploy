@@ -27,6 +27,12 @@ export interface UserListItem {
   role: UserRole;
   occupationId: number | null;
   isVerified: boolean;
+  managedByUser?: {
+    id: number;
+    name: string | null;
+    email: string;
+    role: UserRole;
+  } | null;
 }
 
 @Injectable()
@@ -119,6 +125,14 @@ export class UserService {
         role: true,
         occupationId: true,
         isVerified: true,
+        managedByUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
       },
       orderBy: { id: 'asc' },
     });
@@ -228,6 +242,25 @@ export class UserService {
         skip: (safePage - 1) * safePageSize,
         take: safePageSize,
         orderBy: { id: 'asc' },
+        select: {
+          id: true,
+          email: true,
+          rut: true,
+          phone: true,
+          name: true,
+          createdAt: true,
+          role: true,
+          occupationId: true,
+          isVerified: true,
+          managedByUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
       }),
       this.prisma.user.count({ where: { managedById } }),
     ]);
@@ -248,11 +281,7 @@ export class UserService {
     return user;
   }
 
-  async getTrucksOfUser(
-    userId: number,
-    includeUnassignedFallback = false,
-    requesterId?: number,
-  ) {
+  async getTrucksOfUser(userId: number, requesterId?: number) {
     if (requesterId !== undefined) {
       await this.assertUserAccess(requesterId, userId);
     }
@@ -267,21 +296,7 @@ export class UserService {
       include: { truck: true },
     });
 
-    if (assignments.length > 0 || !includeUnassignedFallback) {
-      return assignments.map((a) => a.truck);
-    }
-
-    return this.prisma.truck.findMany({
-      where: {
-        status: TruckStatus.ACTIVE,
-        users: {
-          none: {},
-        },
-      },
-      orderBy: {
-        plate: 'asc',
-      },
-    });
+    return assignments.map((a) => a.truck);
   }
 
   async findByEmail(email: string) {
@@ -360,8 +375,50 @@ export class UserService {
       );
     }
 
-    const data: Prisma.UserUpdateInput = { ...dto };
+    const { managedById, ...updateDto } = dto;
+    const data: Prisma.UserUpdateInput = { ...updateDto };
     const passwordChanged = 'password' in dto && !!dto.password;
+    const nextRole = dto.role ?? user.role;
+
+    if (nextRole === UserRole.ADMIN) {
+      data.managedByUser = {
+        disconnect: true,
+      };
+    } else {
+      const nextManagedById = managedById ?? user.managedById;
+
+      if (nextRole === UserRole.DRIVER && nextManagedById == null) {
+        throw new BadRequestException(
+          'Debes asignar un usuario gestor con rol ADMIN o DIRECTION',
+        );
+      }
+
+      if (nextManagedById == null) {
+        data.managedByUser = { disconnect: true };
+      } else {
+        const manager = await this.prisma.user.findUnique({
+          where: { id: nextManagedById },
+          select: { id: true, role: true },
+        });
+
+        if (!manager) {
+          throw new NotFoundException('El usuario gestor no existe');
+        }
+
+        if (
+          manager.role !== UserRole.ADMIN &&
+          manager.role !== UserRole.DIRECTION
+        ) {
+          throw new ForbiddenException(
+            'El usuario gestor debe tener rol ADMIN o DIRECTION',
+          );
+        }
+
+        data.managedByUser = {
+          connect: { id: nextManagedById },
+        };
+      }
+    }
 
     if (passwordChanged) {
       data.password = await bcrypt.hash(dto.password as string, 10);

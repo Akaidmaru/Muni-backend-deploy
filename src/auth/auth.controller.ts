@@ -35,6 +35,8 @@ interface CurrentUserResponse {
   rut: string;
   name: string | null;
   role: string;
+  managedById: number | null;
+  managedByRole: string | null;
 }
 
 @Controller('auth')

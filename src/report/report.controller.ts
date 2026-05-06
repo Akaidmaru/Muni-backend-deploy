@@ -37,6 +37,7 @@ export class ReportController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER', 'EMPLOYEE')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
@@ -51,6 +52,8 @@ export class ReportController {
       },
     }),
   )
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER', 'EMPLOYEE')
   async create(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateProblemReportDto,
@@ -60,7 +63,8 @@ export class ReportController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTION', 'DRIVER', 'EMPLOYEE')
   async findMine(@Req() req: AuthenticatedRequest): Promise<unknown> {
     return this.reportService.findMine(req.user.id);
   }
