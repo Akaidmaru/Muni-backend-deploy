@@ -414,6 +414,12 @@ export class AuthService {
     };
   }
 
+  async refreshToken(userId: number): Promise<{ accessToken: string }> {
+    const payload = { sub: userId };
+    const accessToken = this.jwtService.sign(payload);
+    return { accessToken };
+  }
+
   async logout(authHeader?: string) {
     if (!authHeader) {
       throw new UnauthorizedException('No token provided');

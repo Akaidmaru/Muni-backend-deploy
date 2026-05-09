@@ -724,13 +724,21 @@ export class TripHistoryService {
         longitude: true,
       },
     });
+    const finalPoints = dto.points ?? [];
+    const pointsForDistance = [
+      ...tripPoints,
+      ...finalPoints.map((point) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+      })),
+    ];
 
-    let routePoints = tripPoints;
+    let routePoints = pointsForDistance;
 
     try {
-      routePoints = await this.googleRoadsService.snapToRoads(tripPoints);
+      routePoints = await this.googleRoadsService.snapToRoads(pointsForDistance);
     } catch {
-      routePoints = tripPoints;
+      routePoints = pointsForDistance;
     }
 
     const traveledKm = this.calculateRouteDistanceKm(routePoints);
@@ -743,6 +751,17 @@ export class TripHistoryService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        if (finalPoints.length) {
+          await tx.tripHistoryPoint.createMany({
+            data: finalPoints.map((point) => ({
+              tripHistoryId: tripHistory.id,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              ...(point.capturedAt ? { capturedAt: new Date(point.capturedAt) } : {}),
+            })),
+          });
+        }
+
         const updatedTrip = await tx.tripHistory.update({
           where: { id: tripHistory.id },
           data: {

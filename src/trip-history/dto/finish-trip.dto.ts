@@ -1,4 +1,26 @@
-import { IsString, Matches, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsISO8601,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+
+export class FinishTripPointDto {
+  @IsNumber()
+  latitude!: number;
+
+  @IsNumber()
+  longitude!: number;
+
+  @IsOptional()
+  @IsISO8601()
+  capturedAt?: string;
+}
 
 export class FinishTripDto {
   @IsString()
@@ -11,4 +33,10 @@ export class FinishTripDto {
     message: 'La firma debe ser una imagen en formato base64 data URL',
   })
   signature: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FinishTripPointDto)
+  points?: FinishTripPointDto[];
 }
