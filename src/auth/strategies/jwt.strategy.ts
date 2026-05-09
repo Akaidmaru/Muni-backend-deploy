@@ -30,25 +30,35 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
 
     if (token) {
-      const isBlacklisted = await this.redisService.exists(
-        `blacklist:${token}`,
-      );
-      if (isBlacklisted) {
-        throw new UnauthorizedException('Token inválido');
+      try {
+        const isBlacklisted = await this.redisService.exists(
+          `blacklist:${token}`,
+        );
+        if (isBlacklisted) {
+          throw new UnauthorizedException('Token inválido');
+        }
+      } catch (e) {
+        if (e instanceof UnauthorizedException) throw e;
+        // Redis no disponible — el JWT sigue teniendo firma válida, permitir request
       }
     }
 
-    const passwordResetAfterRaw = await this.redisService.get(
-      `auth:password-reset-after:${payload.sub}`,
-    );
-    if (passwordResetAfterRaw) {
-      const passwordResetAfter = Number(passwordResetAfterRaw);
-      if (
-        Number.isFinite(passwordResetAfter) &&
-        (!payload.iat || payload.iat < passwordResetAfter)
-      ) {
-        throw new UnauthorizedException('Token expirado por cambio de contraseña');
+    try {
+      const passwordResetAfterRaw = await this.redisService.get(
+        `auth:password-reset-after:${payload.sub}`,
+      );
+      if (passwordResetAfterRaw) {
+        const passwordResetAfter = Number(passwordResetAfterRaw);
+        if (
+          Number.isFinite(passwordResetAfter) &&
+          (!payload.iat || payload.iat < passwordResetAfter)
+        ) {
+          throw new UnauthorizedException('Token expirado por cambio de contraseña');
+        }
       }
+    } catch (e) {
+      if (e instanceof UnauthorizedException) throw e;
+      // Redis no disponible — permitir request
     }
 
     return {

@@ -267,6 +267,21 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
+  @Post('refresh')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Renovar JWT sin necesidad de re-autenticarse' })
+  @ApiResponse({ status: 200, description: 'Nuevo access token emitido' })
+  async refresh(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ accessToken: string }> {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedException('Usuario no encontrado en token');
+    }
+    return this.authService.refreshToken(userId);
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
