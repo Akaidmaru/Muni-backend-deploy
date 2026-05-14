@@ -23,7 +23,10 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { parseCorsOrigins } from '../common/cors-origins';
+import {
+  createSocketIoCorsOriginFn,
+  getCorsOriginsFromEnv,
+} from '../common/cors-origins';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface SocketAuthPayload {
@@ -35,9 +38,12 @@ interface ConnectedUser {
   role: UserRole;
 }
 
+/** Una réplica: sockets en memoria. Varias instancias: usar @socket.io/redis-adapter + REDIS_URL. */
 @WebSocketGateway({
   cors: {
-    origin: parseCorsOrigins(process.env.CORS_ORIGIN),
+    origin: createSocketIoCorsOriginFn(
+      getCorsOriginsFromEnv(),
+    ),
     credentials: true,
   },
 })
@@ -85,6 +91,10 @@ export class ReportNotificationsGateway
         userId: user.id,
         role: user.role,
       });
+
+      this.logger.log(
+        `Socket autenticado: userId=${user.id} rol=${user.role}`,
+      );
 
       await client.join(this.getUserRoom(user.id));
       await client.join(this.getRoleRoom(user.role));
